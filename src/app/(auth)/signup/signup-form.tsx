@@ -23,7 +23,7 @@ export function SignupForm() {
       <CardHeader>
         <CardTitle>Criar empresa</CardTitle>
         <CardDescription>
-          Crie sua conta e a empresa (tenant) para começar
+          Crie sua conta e a empresa para começar
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -74,7 +74,7 @@ export function SignupForm() {
             name="password"
             type="password"
             label="Senha"
-            placeholder="Mínimo 6 caracteres"
+            placeholder="••••••••"
             required
             minLength={6}
             autoComplete="new-password"
