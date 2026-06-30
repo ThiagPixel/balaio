@@ -1,4 +1,4 @@
-# StockFlow
+# Balaio
 
 Sistema web de **gestão de estoque e financeiro**, **multi-tenant**, **responsivo**.
 

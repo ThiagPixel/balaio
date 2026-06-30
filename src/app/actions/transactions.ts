@@ -23,7 +23,7 @@ export type TransactionState = {
 
 export async function createTransaction(
   _prev: TransactionState,
-  formData: FormData
+  formData: FormData,
 ): Promise<TransactionState> {
   const raw = Object.fromEntries(formData.entries());
   const parsed = transactionSchema.safeParse({
@@ -40,7 +40,7 @@ export async function createTransaction(
     return { error: "Verifique os campos", fieldErrors };
   }
 
-  const { supabase } = await requireTenant();
+  const { supabase, tenantId } = await requireTenant();
   const data = parsed.data;
 
   // Se status = PAID e não tem paid_at, define como hoje
@@ -48,7 +48,10 @@ export async function createTransaction(
     data.paid_at = new Date().toISOString().slice(0, 10);
   }
 
-  const { error } = await supabase.from("transactions").insert(data);
+  const { error } = await supabase.from("transactions").insert({
+    ...data,
+    tenant_id: tenantId,
+  });
   if (error) return { error: error.message };
 
   revalidatePath("/financial");
@@ -58,23 +61,31 @@ export async function createTransaction(
 
 export async function updateTransactionStatus(
   id: string,
-  status: "PENDING" | "PAID" | "CANCELLED"
+  status: "PENDING" | "PAID" | "CANCELLED",
 ) {
-  const { supabase } = await requireTenant();
+  const { supabase, tenantId } = await requireTenant();
   const updates: Record<string, unknown> = { status };
   if (status === "PAID") {
     updates.paid_at = new Date().toISOString().slice(0, 10);
   } else if (status === "PENDING") {
     updates.paid_at = null;
   }
-  await supabase.from("transactions").update(updates).eq("id", id);
+  await supabase
+    .from("transactions")
+    .update(updates)
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
   revalidatePath("/financial");
   revalidatePath("/");
 }
 
 export async function deleteTransaction(id: string) {
-  const { supabase } = await requireTenant();
-  await supabase.from("transactions").delete().eq("id", id);
+  const { supabase, tenantId } = await requireTenant();
+  await supabase
+    .from("transactions")
+    .delete()
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
   revalidatePath("/financial");
   revalidatePath("/");
 }

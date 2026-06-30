@@ -23,7 +23,7 @@ export type ProductState = {
 
 export async function createProduct(
   _prev: ProductState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ProductState> {
   const raw = Object.fromEntries(formData.entries());
   const parsed = productSchema.safeParse({
@@ -40,10 +40,11 @@ export async function createProduct(
     return { error: "Verifique os campos", fieldErrors };
   }
 
-  const { supabase } = await requireTenant();
+  const { supabase, tenantId } = await requireTenant();
 
   const { error } = await supabase.from("products").insert({
     ...parsed.data,
+    tenant_id: tenantId,
     active: true,
   });
 
@@ -62,7 +63,7 @@ export async function createProduct(
 export async function updateProduct(
   id: string,
   _prev: ProductState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ProductState> {
   const raw = Object.fromEntries(formData.entries());
   const parsed = productSchema.safeParse({
@@ -79,11 +80,12 @@ export async function updateProduct(
     return { error: "Verifique os campos", fieldErrors };
   }
 
-  const { supabase } = await requireTenant();
+  const { supabase, tenantId } = await requireTenant();
   const { error } = await supabase
     .from("products")
     .update(parsed.data)
-    .eq("id", id);
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
 
   if (error) {
     if (error.code === "23505") {
@@ -98,13 +100,21 @@ export async function updateProduct(
 }
 
 export async function toggleProductActive(id: string, active: boolean) {
-  const { supabase } = await requireTenant();
-  await supabase.from("products").update({ active }).eq("id", id);
+  const { supabase, tenantId } = await requireTenant();
+  await supabase
+    .from("products")
+    .update({ active })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
   revalidatePath("/products");
 }
 
 export async function deleteProduct(id: string) {
-  const { supabase } = await requireTenant();
-  await supabase.from("products").delete().eq("id", id);
+  const { supabase, tenantId } = await requireTenant();
+  await supabase
+    .from("products")
+    .delete()
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
   revalidatePath("/products");
 }

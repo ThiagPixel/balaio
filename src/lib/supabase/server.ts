@@ -58,3 +58,23 @@ export function createAdminClient() {
     },
   );
 }
+
+// RPC helper que usa service_role via função SQL (bypassa RLS)
+export async function createTenantWithAdmin(
+  name: string,
+  slug: string,
+  userId: string,
+  email: string,
+  fullName: string,
+) {
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("create_tenant_with_admin", {
+    p_name: name,
+    p_slug: slug,
+    p_user_id: userId,
+    p_email: email,
+    p_full_name: fullName,
+  });
+
+  if (error) throw error;
+}

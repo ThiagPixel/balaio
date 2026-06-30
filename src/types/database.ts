@@ -1,5 +1,5 @@
 // =====================================================
-// StockFlow - Tipos do banco Supabase
+// Balaio - Tipos do banco Supabase
 // =====================================================
 // Você pode regenerar esses tipos rodando:
 //   npx supabase gen types typescript --project-id <id> > src/types/database.ts

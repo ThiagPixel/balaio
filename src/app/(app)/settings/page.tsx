@@ -1,5 +1,11 @@
 import { requireTenant } from "@/lib/supabase/tenant";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TenantForm } from "./tenant-form";
 import { redirect } from "next/navigation";
@@ -60,9 +66,7 @@ export default async function SettingsPage() {
                     <p className="text-xs text-slate-500">{m.email}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge
-                      variant={m.role === "owner" ? "info" : "default"}
-                    >
+                    <Badge variant={m.role === "owner" ? "info" : "default"}>
                       {m.role === "owner" ? "Proprietário" : "Membro"}
                     </Badge>
                     {!m.active && <Badge variant="default">Inativo</Badge>}
@@ -74,27 +78,6 @@ export default async function SettingsPage() {
           <p className="mt-4 text-xs text-slate-500">
             💡 No MVP, o convite de novos usuários é feito pelo suporte.
             Convidaremos usuários adicionando-os manualmente.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Como funciona o multi-tenant</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-slate-600">
-          <p>
-            ✅ Cada empresa (tenant) tem seus dados isolados por
-            <strong> Row Level Security (RLS) </strong>
-            no Supabase.
-          </p>
-          <p>
-            ✅ Cada usuário carrega o <code className="rounded bg-slate-100 px-1">tenant_id</code> no
-            token JWT, garantindo que as policies do banco filtrem automaticamente.
-          </p>
-          <p>
-            ✅ Para criar uma nova empresa, basta fazer logout e usar
-            &quot;Criar empresa&quot; na tela de login.
           </p>
         </CardContent>
       </Card>

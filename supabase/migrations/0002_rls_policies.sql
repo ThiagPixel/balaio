@@ -1,9 +1,8 @@
 -- =====================================================
--- StockFlow - Row Level Security (multi-tenant)
+-- Balaio - Row Level Security (multi-tenant)
 -- =====================================================
--- Todas as policies usam auth.jwt() ->> 'tenant_id'
--- O claim 'tenant_id' é injetado via custom_access_token_hook
--- (ver 0003_auth_triggers.sql)
+-- Todas as policies usam public.get_tenant_id()
+-- que busca tenant_id via auth.uid() no banco (SEM JWT)
 -- =====================================================
 
 -- Habilitar RLS
@@ -14,18 +13,27 @@ alter table public.stock_movements enable row level security;
 alter table public.transactions enable row level security;
 
 -- -----------------------------------------------------
--- Helper: ler tenant_id do JWT
+-- Helper: get_tenant_id via auth.uid() (SEM JWT)
 -- -----------------------------------------------------
 create or replace function public.get_tenant_id()
 returns uuid
-language sql
+language plpgsql
 stable
+security definer
+set search_path = public
 as $$
-  select nullif(
-    current_setting('request.jwt.claims', true)::jsonb ->> 'tenant_id',
-    ''
-  )::uuid;
+declare
+  v_tenant_id uuid;
+begin
+  select u.tenant_id into v_tenant_id
+  from public.users u
+  where u.id = auth.uid();
+  return v_tenant_id;
+end;
 $$;
+
+grant execute on function public.get_tenant_id() to authenticated;
+revoke execute on function public.get_tenant_id() from anon, public;
 
 -- -----------------------------------------------------
 -- Tenants: usuário só vê o próprio tenant

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createClient, createTenantWithAdmin } from "@/lib/supabase/server";
 import { slugify } from "@/lib/utils";
 
 // Validações
@@ -11,7 +11,16 @@ const signupSchema = z.object({
   companyName: z.string().min(2, "Nome da empresa muito curto"),
   fullName: z.string().min(2, "Nome muito curto"),
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "A senha deve ter ao menos 6 caracteres"),
+  password: z
+    .string()
+    .min(8, "A senha deve ter no mínimo 8 caracteres")
+    .regex(/[A-Z]/, "A senha deve conter pelo menos 1 letra maiúscula")
+    .regex(/[a-z]/, "A senha deve conter pelo menos 1 letra minúscula")
+    .regex(/[0-9]/, "A senha deve conter pelo menos 1 número")
+    .regex(
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/,
+      "A senha deve conter pelo menos 1 caractere especial",
+    ),
 });
 
 const loginSchema = z.object({
@@ -45,30 +54,15 @@ export async function signup(
   }
 
   const { companyName, fullName, email, password } = parsed.data;
-  const admin = createAdminClient();
   const supabase = await createClient();
 
-  // 1) Cria o tenant com um slug único
-  const baseSlug = slugify(companyName) || "empresa";
-  const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
-
-  const { data: tenant, error: tenantErr } = await admin
-    .from("tenants")
-    .insert({ name: companyName, slug })
-    .select()
-    .single();
-
-  if (tenantErr || !tenant) {
-    return { error: `Erro ao criar empresa: ${tenantErr?.message ?? "?"}` };
-  }
-
-  // 2) Cria o usuário no Auth (signUp normal, com email redirect)
+  // 1) Cria o usuário no Auth primeiro (precisa do user_id para a RPC)
   const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
-        tenant_id: tenant.id,
+        tenant_id: "pending", // placeholder até criar tenant
         full_name: fullName,
         role: "owner",
       },
@@ -77,23 +71,22 @@ export async function signup(
   });
 
   if (signUpErr || !signUpData.user) {
-    // Rollback tenant
-    await admin.from("tenants").delete().eq("id", tenant.id);
     return { error: signUpErr?.message ?? "Erro ao criar usuário" };
   }
 
-  // 3) O trigger handle_new_user já criou o public.users com tenant_id.
-  // Garante que o registro existe (caso o signup seja confirmado depois)
-  await admin.from("users").upsert(
-    {
-      id: signUpData.user.id,
-      tenant_id: tenant.id,
-      email,
-      full_name: fullName,
-      role: "owner",
-    },
-    { onConflict: "id" },
-  );
+  const userId = signUpData.user.id;
+
+  // 2) Cria o tenant e users via RPC (bypassa RLS)
+  const baseSlug = slugify(companyName) || "empresa";
+  const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
+
+  try {
+    await createTenantWithAdmin(companyName, slug, userId, email, fullName);
+  } catch (err: unknown) {
+    return {
+      error: `Erro ao criar empresa: ${err instanceof Error ? err.message : "?"}`,
+    };
+  }
 
   // Se confirmação de email estiver desabilitada no Supabase, o user já
   // está logado. Caso contrário, exibimos uma mensagem.

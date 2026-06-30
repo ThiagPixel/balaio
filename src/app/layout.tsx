@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "StockFlow - Estoque e Financeiro",
+  title: "Balaio - Estoque e Financeiro",
   description: "Sistema de gestão de estoque e financeiro multi-tenant",
 };
 

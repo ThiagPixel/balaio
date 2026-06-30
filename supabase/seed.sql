@@ -1,5 +1,5 @@
 -- =====================================================
--- StockFlow - Seed de dados de exemplo
+-- Balaio - Seed de dados de exemplo
 -- =====================================================
 -- Use APENAS em ambiente de desenvolvimento/testes.
 -- Cria um tenant de exemplo com produtos e lançamentos.

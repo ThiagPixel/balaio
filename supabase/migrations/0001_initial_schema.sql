@@ -1,5 +1,5 @@
 -- =====================================================
--- StockFlow - Schema inicial
+-- Balaio - Schema inicial
 -- =====================================================
 -- Execute este arquivo no SQL Editor do Supabase
 -- (Database > SQL Editor > New query)

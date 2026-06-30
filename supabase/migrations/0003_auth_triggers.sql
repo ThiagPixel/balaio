@@ -1,17 +1,46 @@
 -- =====================================================
--- StockFlow - Triggers de auth
+-- Balaio - Funções helper (SEM JWT)
 -- =====================================================
--- 1) Quando um user é criado em auth.users, cria um
---    registro em public.users vinculado ao tenant
---    (criado pelo app no signup via service_role)
--- 2) Custom Access Token Hook injeta tenant_id no JWT
+-- 1) get_tenant_id(): busca tenant_id via auth.uid() no banco
+-- 2) create_tenant_with_admin(): cria tenant+users bypassando RLS
 -- =====================================================
 
 -- -----------------------------------------------------
--- Trigger: criar public.users ao criar auth.users
+-- Helper: get_tenant_id via auth.uid() (sem JWT)
 -- -----------------------------------------------------
-create or replace function public.handle_new_user()
-returns trigger
+create or replace function public.get_tenant_id()
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_tenant_id uuid;
+begin
+  select u.tenant_id into v_tenant_id
+  from public.users u
+  where u.id = auth.uid();
+
+  return v_tenant_id;
+end;
+$$;
+
+grant execute on function public.get_tenant_id() to authenticated;
+revoke execute on function public.get_tenant_id() from anon, public;
+
+-- -----------------------------------------------------
+-- Helper RPC: cria tenant + users bypassing RLS
+-- Usado pelo app durante signup
+-- -----------------------------------------------------
+create or replace function public.create_tenant_with_admin(
+  p_name text,
+  p_slug text,
+  p_user_id uuid,
+  p_email text,
+  p_full_name text
+)
+returns void
 language plpgsql
 security definer
 set search_path = public
@@ -19,75 +48,50 @@ as $$
 declare
   v_tenant_id uuid;
 begin
-  v_tenant_id := (new.raw_user_meta_data ->> 'tenant_id')::uuid;
-
-  -- Se não houver tenant_id no metadata, não cria (será feito
-  -- explicitamente pelo app via service_role)
-  if v_tenant_id is null then
-    return new;
-  end if;
+  insert into public.tenants (name, slug)
+  values (p_name, p_slug)
+  returning id into v_tenant_id;
 
   insert into public.users (id, tenant_id, email, full_name, role)
-  values (
-    new.id,
-    v_tenant_id,
-    new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', ''),
-    coalesce(new.raw_user_meta_data ->> 'role', 'owner')
-  )
+  values (p_user_id, v_tenant_id, p_email, p_full_name, 'owner')
   on conflict (id) do nothing;
-
-  return new;
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+grant execute on function public.create_tenant_with_admin(text, text, uuid, text, text) to authenticated, anon;
+revoke execute on function public.create_tenant_with_admin(text, text, uuid, text, text) from anon;
 
 -- -----------------------------------------------------
--- Custom Access Token Hook: injeta tenant_id no JWT
+-- Função atômica: movimenta estoque com transação
+-- Evita race condition entre leitura e escrita
 -- -----------------------------------------------------
--- IMPORTANTE: além de criar a função, habilite o hook em
--- Authentication > Hooks (Supabase Dashboard) selecionando
--- "Customize Access Token (JWT) Claims" e apontando para
--- public.custom_access_token_hook.
--- -----------------------------------------------------
-create or replace function public.custom_access_token_hook(event jsonb)
-returns jsonb
+create or replace function public.execute_stock_movement(
+  p_product_id uuid,
+  p_tenant_id uuid,
+  p_type text,
+  p_quantity integer,
+  p_unit_cost numeric,
+  p_notes text,
+  p_new_stock integer
+)
+returns void
 language plpgsql
-stable
+security definer
+set search_path = public
 as $$
-declare
-  claims jsonb;
-  v_tenant_id uuid;
-  v_full_name text;
 begin
-  select u.tenant_id, u.full_name
-    into v_tenant_id, v_full_name
-  from public.users u
-  where u.id = (event ->> 'user_id')::uuid;
+  -- Atualiza estoque do produto (bloqueia a linha)
+  update public.products
+  set current_stock = p_new_stock, updated_at = now()
+  where id = p_product_id and tenant_id = p_tenant_id;
 
-  claims := event -> 'claims';
-
-  if v_tenant_id is not null then
-    claims := jsonb_set(claims, '{tenant_id}', to_jsonb(v_tenant_id));
-  end if;
-
-  if v_full_name is not null then
-    claims := jsonb_set(claims, '{full_name}', to_jsonb(v_full_name));
-  end if;
-
-  event := jsonb_set(event, '{claims}', claims);
-  return event;
+  -- Insere registro da movimentação
+  insert into public.stock_movements
+    (tenant_id, product_id, type, quantity, unit_cost, notes)
+  values
+    (p_tenant_id, p_product_id, p_type, p_quantity, p_unit_cost, p_notes);
 end;
 $$;
 
--- Permissões necessárias
-grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
-revoke execute on function public.custom_access_token_hook(jsonb) from authenticated, anon, public;
-
--- Também permitir que usuários autenticados leiam seu próprio user
--- (necessário para o hook funcionar via JWT)
-grant select on public.users to supabase_auth_admin;
+grant execute on function public.execute_stock_movement(uuid, uuid, text, integer, numeric, text, integer) to authenticated;
+revoke execute on function public.execute_stock_movement(uuid, uuid, text, integer, numeric, text, integer) from anon;

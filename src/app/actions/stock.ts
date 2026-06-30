@@ -8,7 +8,10 @@ import { requireTenant } from "@/lib/supabase/tenant";
 const movementSchema = z.object({
   product_id: z.string().uuid("Produto inválido"),
   type: z.enum(["IN", "OUT", "ADJUST"]),
-  quantity: z.coerce.number().int().refine((v) => v !== 0, "Quantidade não pode ser zero"),
+  quantity: z.coerce
+    .number()
+    .int()
+    .refine((v) => v !== 0, "Quantidade não pode ser zero"),
   unit_cost: z.coerce.number().min(0).optional().nullable(),
   notes: z.string().optional().nullable(),
 });
@@ -20,7 +23,7 @@ export type StockState = {
 
 export async function createMovement(
   _prev: StockState,
-  formData: FormData
+  formData: FormData,
 ): Promise<StockState> {
   const raw = Object.fromEntries(formData.entries());
   const parsed = movementSchema.safeParse({
@@ -37,36 +40,22 @@ export async function createMovement(
     return { error: "Verifique os campos", fieldErrors };
   }
 
-  const { supabase } = await requireTenant();
+  const { supabase, tenantId } = await requireTenant();
   const data = parsed.data;
 
-  // Insere movimentação
-  const { error: mvError } = await supabase
-    .from("stock_movements")
-    .insert({
-      product_id: data.product_id,
-      type: data.type,
-      quantity: data.quantity,
-      unit_cost: data.unit_cost,
-      notes: data.notes,
-    });
-
-  if (mvError) return { error: mvError.message };
-
-  // Atualiza o estoque atual do produto
-  // - IN: soma
-  // - OUT: subtrai
-  // - ADJUST: define como a quantidade
+  // Busca produto verificando que pertence ao tenant do usuário
   const { data: product, error: prodError } = await supabase
     .from("products")
-    .select("current_stock")
+    .select("id, current_stock")
     .eq("id", data.product_id)
+    .eq("tenant_id", tenantId)
     .single();
 
   if (prodError || !product) {
-    return { error: "Produto não encontrado" };
+    return { error: "Produto não encontrado neste tenant" };
   }
 
+  // Calcula novo estoque
   let newStock = product.current_stock;
   if (data.type === "IN") newStock += data.quantity;
   else if (data.type === "OUT") newStock -= data.quantity;
@@ -76,12 +65,19 @@ export async function createMovement(
     return { error: "Estoque ficaria negativo" };
   }
 
-  const { error: updError } = await supabase
-    .from("products")
-    .update({ current_stock: newStock })
-    .eq("id", data.product_id);
+  // Atualiza produto E insere movimentação de forma atômica
+  // Usa transação para evitar race condition
+  const { error: txError } = await supabase.rpc("execute_stock_movement", {
+    p_product_id: data.product_id,
+    p_tenant_id: tenantId,
+    p_type: data.type,
+    p_quantity: data.quantity,
+    p_unit_cost: data.unit_cost,
+    p_notes: data.notes,
+    p_new_stock: newStock,
+  });
 
-  if (updError) return { error: updError.message };
+  if (txError) return { error: txError.message };
 
   revalidatePath("/stock");
   revalidatePath("/products");

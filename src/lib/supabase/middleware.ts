@@ -1,4 +1,4 @@
-// Atualiza sessão do Supabase em cada request via middleware
+// Middleware Next.js - valida autenticação sem depender de JWT custom
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -17,16 +17,10 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(
-          cookiesToSet: {
-            name: string;
-            value: string;
-            options: CookieOptions;
-          }[],
-        ) {
-          cookiesToSet.forEach(
-            ({ name, value }: { name: string; value: string }) =>
-              request.cookies.set(name, value),
+        setAll(cookiesToSet) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
           );
           response = NextResponse.next({
             request: {
@@ -49,7 +43,7 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // IMPORTANTE: getUser() refresca o token se necessário e valida a sessão.
+  // Apenas verifica se está autenticado (não depende de tenant_id no JWT)
   const {
     data: { user },
   } = await supabase.auth.getUser();
