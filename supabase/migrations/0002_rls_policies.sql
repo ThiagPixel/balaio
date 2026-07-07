@@ -2,7 +2,7 @@
 -- Balaio - Row Level Security (multi-tenant)
 -- =====================================================
 -- Todas as policies usam public.get_tenant_id()
--- que busca tenant_id via auth.uid() no banco (SEM JWT)
+-- que busca tenant_id via auth.uid() no banco
 -- =====================================================
 
 -- Habilitar RLS
@@ -13,7 +13,7 @@ alter table public.stock_movements enable row level security;
 alter table public.transactions enable row level security;
 
 -- -----------------------------------------------------
--- Helper: get_tenant_id via auth.uid() (SEM JWT)
+-- Helper: get_tenant_id via auth.uid()
 -- -----------------------------------------------------
 create or replace function public.get_tenant_id()
 returns uuid

@@ -14,14 +14,8 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  // Pega o nome do tenant do JWT (injetado via custom_access_token_hook)
-  const tenantId = (user.app_metadata?.tenant_id ??
-    user.user_metadata?.tenant_id) as string | undefined;
-  const tenantName = (user.app_metadata?.full_name
-    ? ""
-    : (user.user_metadata?.full_name as string | undefined)) ?? "";
-
-  // Buscar nome do tenant
+  // Buscar nome do tenant (via RPC que usa get_tenant_id())
+  const { data: tenantId } = await supabase.rpc("get_tenant_id");
   let companyName = "Minha empresa";
   if (tenantId) {
     const { data: tenant } = await supabase

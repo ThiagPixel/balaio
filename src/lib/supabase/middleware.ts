@@ -1,4 +1,4 @@
-// Middleware Next.js - valida autenticação sem depender de JWT custom
+// Middleware Next.js - valida autenticação
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -49,7 +49,7 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Apenas verifica se está autenticado (não depende de tenant_id no JWT)
+  // Verifica se está autenticado
   const {
     data: { user },
   } = await supabase.auth.getUser();

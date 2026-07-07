@@ -1,10 +1,4 @@
-// Helper para obter o tenant_id a partir do banco (sem依赖 JWT)
-import type { User } from "@supabase/supabase-js";
-
-export function getTenantIdFromUser(_user: User | null): string | null {
-  // Não lê mais do JWT — tenant_id vem do banco via requireTenant()
-  return null;
-}
+// Tenant ID é obtido diretamente do banco via RPC (get_tenant_id)
 
 export async function requireTenant() {
   const { createClient } = await import("./server");

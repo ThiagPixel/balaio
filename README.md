@@ -16,7 +16,7 @@ Stack: **Next.js 14 (App Router) + TypeScript + Tailwind CSS + Supabase (Postgre
 - 💰 **Financeiro**: contas a pagar e receber, com filtros e marcação de pago
 - ⚙️ **Configurações** da empresa
 - 📱 **Responsivo** (mobile-first, sidebar com drawer)
-- 🔒 **Isolamento total por tenant** garantido no banco (RLS + JWT custom claim)
+- 🔒 **Isolamento total por tenant** garantido no banco com RLS
 
 ---
 
@@ -47,18 +47,9 @@ No Supabase, vá em **SQL Editor** e rode os arquivos na ordem:
 
 1. `supabase/migrations/0001_initial_schema.sql` — tabelas e triggers de `updated_at`
 2. `supabase/migrations/0002_rls_policies.sql` — habilita RLS e cria as policies
-3. `supabase/migrations/0003_auth_triggers.sql` — hook de auth que injeta `tenant_id` no JWT
+3. `supabase/migrations/0003_auth_triggers.sql` — funções SQL helper para tenant e estoque
 
-### 5. Habilitar o Custom Access Token Hook
-
-**Importante:** sem este passo, o `tenant_id` não será injetado no JWT e o RLS não vai funcionar.
-
-1. Vá em **Authentication > Hooks** no Supabase Dashboard
-2. Selecione **"Customize Access Token (JWT) Claims"**
-3. Em "Hook" escolha a função `public.custom_access_token_hook`
-4. Salve
-
-### 6. (Opcional) Desabilitar confirmação de email
+### 5. (Opcional) Desabilitar confirmação de email
 
 Para um MVP sem fricção, você pode desabilitar a confirmação de email:
 
@@ -136,8 +127,7 @@ src/
 O isolamento é feito em **3 camadas**:
 
 1. **Tabela `tenants`** + `tenant_id` em todas as tabelas de negócio
-2. **Custom Access Token Hook** injeta `tenant_id` no JWT do usuário
-3. **Row Level Security (RLS)** filtra automaticamente todas as queries com base no claim
+2. **Row Level Security (RLS)** filtra automaticamente todas as queries usando `get_tenant_id()` que busca tenant_id no banco via `auth.uid()`
 
 Isso significa que **um bug no app não vaza dados entre tenants** — o banco se recusa a entregar.
 
@@ -153,8 +143,7 @@ Isso significa que **um bug no app não vaza dados entre tenants** — o banco s
 ## 🧪 Validações de segurança recomendadas
 
 - [x] RLS habilitado em todas as tabelas
-- [x] `tenant_id` no JWT via custom hook
-- [x] Policies com `get_tenant_id()` que lê o JWT
+- [x] Policies com `get_tenant_id()` que busca tenant_id no banco
 - [x] Service role usada **apenas** no signup (server-side)
 - [ ] Após o MVP: adicionar rate-limit no signup
 - [ ] Após o MVP: logs de auditoria (quem fez o quê)

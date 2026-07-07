@@ -1,12 +1,13 @@
 -- =====================================================
--- Balaio - Funções helper (SEM JWT)
+-- Balaio - Funções helper
 -- =====================================================
 -- 1) get_tenant_id(): busca tenant_id via auth.uid() no banco
 -- 2) create_tenant_with_admin(): cria tenant+users bypassando RLS
+-- 3) execute_stock_movement(): movimenta estoque atomicamente
 -- =====================================================
 
 -- -----------------------------------------------------
--- Helper: get_tenant_id via auth.uid() (sem JWT)
+-- Helper: get_tenant_id via auth.uid()
 -- -----------------------------------------------------
 create or replace function public.get_tenant_id()
 returns uuid
