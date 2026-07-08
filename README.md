@@ -49,13 +49,18 @@ No Supabase, vá em **SQL Editor** e rode os arquivos na ordem:
 2. `supabase/migrations/0002_rls_policies.sql` — habilita RLS e cria as policies
 3. `supabase/migrations/0003_auth_triggers.sql` — funções SQL helper para tenant e estoque
 
-### 5. (Opcional) Desabilitar confirmação de email
+### 5. Configurar confirmação de email
 
-Para um MVP sem fricção, você pode desabilitar a confirmação de email:
+**Por padrão, a confirmação de email está desabilitada** para uma experiência mais fluida.
 
-- **Authentication > Providers > Email** → desligue **"Confirm email"**
+Se quiser habilitar:
 
-Com a confirmação desabilitada, o login após signup é instantâneo.
+- **Authentication > Providers > Email** → ative **"Confirm email"**
+- Os usuários receberão um link por email para confirmar a conta
+
+Para manter desabilitado (recomendado para MVP):
+
+- Deixe desabilitado no Supabase Dashboard — o login após signup é instantâneo.
 
 ### 7. Variáveis de ambiente
 
