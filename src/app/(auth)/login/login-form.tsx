@@ -52,6 +52,23 @@ export function LoginForm() {
             error={state?.fieldErrors?.password}
           />
 
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                name="remember"
+                className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              />
+              Lembrar-me
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-sm font-medium text-brand-600 hover:text-brand-700"
+            >
+              Esqueci minha senha
+            </Link>
+          </div>
+
           <SubmitButton pendingLabel="Entrando..." className="w-full">
             Entrar
           </SubmitButton>
