@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createClient, createTenantWithAdmin } from "@/lib/supabase/server";
-import { slugify } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
 
 // Validações
 const signupSchema = z.object({
@@ -55,63 +54,104 @@ export type AuthState = {
   fieldErrors?: Record<string, string>;
 } | null;
 
+/* Updating signup because we are transferring the responsibility to the database */
+
 export async function signup(
   _prev: AuthState,
   formData: FormData,
 ): Promise<AuthState> {
   const raw = {
-    companyName: formData.get("companyName") as string,
-    fullName: formData.get("fullName") as string,
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+    companyName: formData.get("companyName"),
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    password: formData.get("password"),
   };
 
   const parsed = signupSchema.safeParse(raw);
+
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
+
     parsed.error.errors.forEach((err) => {
-      if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
+      if (err.path[0]) {
+        fieldErrors[err.path[0] as string] = err.message;
+      }
     });
-    return { error: "Verifique os campos", fieldErrors };
+
+    return {
+      error: "Verifique os campos",
+      fieldErrors,
+    };
   }
 
-  const { companyName, fullName, email, password } = parsed.data;
+  const {
+    companyName,
+    fullName,
+    email,
+    password,
+  } = parsed.data;
+
+  const appUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  if (!appUrl) {
+    return {
+      error:
+        "Configuração incompleta: NEXT_PUBLIC_SUPABASE_URL não está definido.",
+    };
+  }
+
   const supabase = await createClient();
 
-  // 1) Cria o usuário no Auth primeiro (precisa do user_id para a RPC)
-  const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+  const {
+    data: signUpData,
+    error: signUpError,
+  } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
-        tenant_id: "pending", // placeholder até criar tenant
+        /*
+         * Estes são apenas dados de entrada para o trigger.
+         *
+         * O cliente NÃO determina:
+         * - tenant_id
+         * - slug definitivo
+         * - role
+         */
+        signup_flow: "create_company",
+        company_name: companyName,
         full_name: fullName,
-        role: "owner",
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+
+      emailRedirectTo: `${appUrl}/auth/callback`,
     },
   });
 
-  if (signUpErr || !signUpData.user) {
-    return { error: signUpErr?.message ?? "Erro ao criar usuário" };
-  }
+  if (signUpError || !signUpData.user) {
+    console.error("Erro ao criar usuário:", {
+      code: signUpError?.code,
+      message: signUpError?.message,
+      status: signUpError?.status,
+    });
 
-  const userId = signUpData.user.id;
-
-  // 2) Cria o tenant e users via RPC (bypassa RLS)
-  const baseSlug = slugify(companyName) || "empresa";
-  const slug = `${baseSlug}-${Math.random().toString(36).slice(2, 7)}`;
-
-  try {
-    await createTenantWithAdmin(companyName, slug, userId, email, fullName);
-  } catch (err: unknown) {
     return {
-      error: `Erro ao criar empresa: ${err instanceof Error ? err.message : "?"}`,
+      error:
+        signUpError?.message ??
+        "Não foi possível criar sua conta.",
     };
   }
 
-  // Se confirmação de email estiver desabilitada no Supabase, o user já
-  // está logado. Caso contrário, exibimos uma mensagem.
+  /*
+   * Quando chegarmos aqui, o trigger do Supabase já deve ter:
+   *
+   * 1. Criado o usuário em auth.users.
+   * 2. Criado o tenant em public.tenants.
+   * 3. Criado o vínculo usuário ↔ tenant.
+   * 4. Definido o usuário como owner.
+   *
+   * Se o trigger falhar, o signUp deve retornar erro.
+   */
+
   if (signUpData.session) {
     revalidatePath("/", "layout");
     redirect("/");
@@ -175,9 +215,9 @@ export async function resetPassword(
 
   const supabase = await createClient();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const appUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!appUrl) {
-    return { error: "Configuração incompleta: NEXT_PUBLIC_APP_URL não está definido." };
+    return { error: "Configuração incompleta: NEXT_PUBLIC_SUPABASE_URL não está definido." };
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
