@@ -2,62 +2,169 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireTenant } from "@/lib/supabase/tenant";
-import { slugify } from "@/lib/utils";
+
+import { PERMISSIONS } from "@/lib/auth/permissions";
+import {
+  isPermissionDeniedError,
+  requirePermission,
+} from "@/lib/supabase/access";
 
 const tenantSchema = z.object({
-  name: z.string().min(2, "Nome muito curto"),
+  name: z
+    .string()
+    .trim()
+    .min(
+      2,
+      "O nome deve possuir pelo menos 2 caracteres",
+    )
+    .max(
+      120,
+      "O nome deve possuir no máximo 120 caracteres",
+    ),
+
   slug: z
     .string()
-    .min(2, "Slug muito curto")
-    .regex(/^[a-z0-9-]+$/, "Use apenas letras minúsculas, números e hífens"),
+    .trim()
+    .toLowerCase()
+    .min(
+      2,
+      "O identificador deve possuir pelo menos 2 caracteres",
+    )
+    .max(
+      63,
+      "O identificador deve possuir no máximo 63 caracteres",
+    )
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use apenas letras minúsculas, números e hífens",
+    ),
 });
 
 export type TenantState = {
   error?: string;
-  fieldErrors?: Record<string, string>;
   success?: string;
+  fieldErrors?: Record<
+    string,
+    string
+  >;
 } | null;
 
-export async function updateTenant(
-  _prev: TenantState,
-  formData: FormData
-): Promise<TenantState> {
-  const raw = {
-    name: formData.get("name") as string,
-    slug: (formData.get("slug") as string) || "",
-  };
+function getFieldErrors(
+  issues: z.ZodIssue[],
+) {
+  const fieldErrors: Record<
+    string,
+    string
+  > = {};
 
-  const parsed = tenantSchema.safeParse(raw);
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    parsed.error.errors.forEach((e) => {
-      if (e.path[0]) fieldErrors[e.path[0] as string] = e.message;
-    });
-    return { error: "Verifique os campos", fieldErrors };
+  for (const issue of issues) {
+    const field = issue.path[0];
+
+    if (typeof field === "string") {
+      fieldErrors[field] =
+        issue.message;
+    }
   }
 
-  const { supabase, tenantId } = await requireTenant();
-  const { error } = await supabase
-    .from("tenants")
-    .update({
-      name: parsed.data.name,
-      slug: parsed.data.slug,
-    })
-    .eq("id", tenantId);
+  return fieldErrors;
+}
 
-  if (error) {
-    if (error.code === "23505") {
-      return { error: "Este slug já está em uso por outra empresa" };
+export async function updateTenant(
+  _previousState: TenantState,
+  formData: FormData,
+): Promise<TenantState> {
+  const parsed =
+    tenantSchema.safeParse({
+      name: formData.get("name"),
+      slug: formData.get("slug"),
+    });
+
+  if (!parsed.success) {
+    return {
+      error: "Verifique os campos",
+      fieldErrors: getFieldErrors(
+        parsed.error.errors,
+      ),
+    };
+  }
+
+  try {
+    const { supabase } =
+      await requirePermission(
+        PERMISSIONS.SETTINGS_UPDATE,
+      );
+
+    const { error } =
+      await supabase.rpc(
+        "update_company_settings",
+        {
+          p_name: parsed.data.name,
+          p_slug: parsed.data.slug,
+        },
+      );
+
+    if (error) {
+      if (error.code === "23505") {
+        return {
+          error:
+            "Este identificador já está sendo utilizado por outra empresa.",
+          fieldErrors: {
+            slug:
+              "Escolha outro identificador.",
+          },
+        };
+      }
+
+      if (
+        error.code === "42501" ||
+        error.code === "22023" ||
+        error.code === "P0002"
+      ) {
+        return {
+          error: error.message,
+        };
+      }
+
+      console.error(
+        "Erro ao atualizar empresa:",
+        {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        },
+      );
+
+      return {
+        error:
+          "Não foi possível atualizar os dados da empresa.",
+      };
     }
-    return { error: error.message };
+  } catch (error) {
+    if (
+      isPermissionDeniedError(error)
+    ) {
+      return {
+        error: error.message,
+      };
+    }
+
+    console.error(
+      "Erro inesperado ao atualizar empresa:",
+      error,
+    );
+
+    return {
+      error:
+        "Ocorreu um erro inesperado ao atualizar a empresa.",
+    };
   }
 
   revalidatePath("/settings");
-  revalidatePath("/", "layout");
-  return { success: "Configurações salvas!" };
-}
+  revalidatePath("/");
 
-export async function suggestSlugFromName(name: string) {
-  return slugify(name);
+  return {
+    success:
+      "Dados da empresa atualizados.",
+  };
 }

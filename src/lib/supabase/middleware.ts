@@ -1,82 +1,308 @@
-// Middleware Next.js - valida autenticação
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import {
+  createServerClient,
+  type CookieOptions,
+} from "@supabase/ssr";
 
-export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  });
+import {
+  NextResponse,
+  type NextRequest,
+} from "next/server";
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(
-          cookiesToSet: Array<{
-            name: string;
-            value: string;
-            options: CookieOptions;
-          }>,
-        ) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          });
-          cookiesToSet.forEach(
-            ({
-              name,
-              value,
-              options,
-            }: {
+type AccountStatus = {
+  user_id: string;
+  tenant_id: string;
+  active: boolean;
+  role: "owner" | "member";
+};
+
+function copyCookies(
+  source: NextResponse,
+  target: NextResponse,
+) {
+  for (
+    const cookie
+    of source.cookies.getAll()
+  ) {
+    target.cookies.set(
+      cookie.name,
+      cookie.value,
+      cookie,
+    );
+  }
+
+  return target;
+}
+
+function redirectResponse(
+  request: NextRequest,
+  currentResponse: NextResponse,
+  pathname: string,
+) {
+  const url =
+    request.nextUrl.clone();
+
+  url.pathname = pathname;
+
+  const redirect =
+    NextResponse.redirect(url);
+
+  return copyCookies(
+    currentResponse,
+    redirect,
+  );
+}
+
+export async function updateSession(
+  request: NextRequest,
+) {
+  let response =
+    NextResponse.next({
+      request: {
+        headers:
+          request.headers,
+      },
+    });
+
+  const supabase =
+    createServerClient(
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL!,
+      process.env
+        .NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+
+          setAll(
+            cookiesToSet: Array<{
               name: string;
               value: string;
               options: CookieOptions;
-            }) => response.cookies.set(name, value, options),
-          );
+            }>,
+          ) {
+            cookiesToSet.forEach(
+              ({
+                name,
+                value,
+              }) => {
+                request.cookies.set(
+                  name,
+                  value,
+                );
+              },
+            );
+
+            response =
+              NextResponse.next({
+                request: {
+                  headers:
+                    request.headers,
+                },
+              });
+
+            cookiesToSet.forEach(
+              ({
+                name,
+                value,
+                options,
+              }) => {
+                response.cookies.set(
+                  name,
+                  value,
+                  options,
+                );
+              },
+            );
+          },
         },
       },
-    },
-  );
+    );
 
-  // Verifica se está autenticado
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } =
+    await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-  const isAuthRoute =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/forgot-password") ||
-    pathname.startsWith("/reset-password");
-  const isPublicRoute = isAuthRoute || pathname.startsWith("/auth");
-  const isApiRoute = pathname.startsWith("/api");
+  const pathname =
+    request.nextUrl.pathname;
 
-  // Sem usuário tentando acessar rota protegida: redireciona para login
-  if (!user && !isPublicRoute && !isApiRoute) {
-    const url = request.nextUrl.clone();
+  const isApiRoute =
+    pathname.startsWith("/api");
+
+  const isAccountDisabledRoute =
+    pathname ===
+      "/account-disabled" ||
+    pathname.startsWith(
+      "/account-disabled/",
+    );
+
+  const isAuthenticationRoute =
+    pathname.startsWith(
+      "/login",
+    ) ||
+    pathname.startsWith(
+      "/signup",
+    ) ||
+    pathname.startsWith(
+      "/register",
+    ) ||
+    pathname.startsWith(
+      "/forgot-password",
+    ) ||
+    pathname.startsWith(
+      "/reset-password",
+    ) ||
+    pathname.startsWith(
+      "/invite",
+    );
+
+  const isPublicRoute =
+    isAuthenticationRoute ||
+    isAccountDisabledRoute ||
+    pathname.startsWith(
+      "/auth",
+    );
+
+  if (
+    !user &&
+    !isPublicRoute &&
+    !isApiRoute
+  ) {
+    const url =
+      request.nextUrl.clone();
+
     url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+
+    url.searchParams.set(
+      "redirect",
+      pathname,
+    );
+
+    return copyCookies(
+      response,
+      NextResponse.redirect(url),
+    );
   }
 
-  // Usuário logado tentando acessar login/signup: redireciona para app
-  if (user && isAuthRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.searchParams.delete("redirect");
-    return NextResponse.redirect(url);
+  if (!user) {
+    return response;
+  }
+
+  const {
+    data: accountRows,
+    error: accountError,
+  } = await supabase.rpc(
+    "get_my_account_status",
+  );
+
+  const account =
+    accountRows?.[0] as
+      | AccountStatus
+      | undefined;
+
+  /*
+   * Usuário autenticado, mas sem vínculo
+   * válido na aplicação.
+   */
+  if (
+    accountError ||
+    !account
+  ) {
+    console.error(
+      "Conta autenticada sem contexto válido:",
+      {
+        userId: user.id,
+        code:
+          accountError?.code,
+        message:
+          accountError?.message,
+      },
+    );
+
+    if (isApiRoute) {
+      return NextResponse.json(
+        {
+          error:
+            "Conta sem vínculo empresarial válido.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    if (
+      !isAccountDisabledRoute
+    ) {
+      return redirectResponse(
+        request,
+        response,
+        "/account-disabled",
+      );
+    }
+
+    return response;
+  }
+
+  /*
+   * Uma sessão antiga não continua
+   * acessando o sistema depois que o
+   * administrador desativa o usuário.
+   */
+  if (!account.active) {
+    if (isApiRoute) {
+      return NextResponse.json(
+        {
+          error:
+            "Conta desativada.",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    if (
+      !isAccountDisabledRoute
+    ) {
+      return redirectResponse(
+        request,
+        response,
+        "/account-disabled",
+      );
+    }
+
+    return response;
+  }
+
+  /*
+   * Usuário reativado não precisa ficar
+   * preso na tela de conta desativada.
+   */
+  if (
+    isAccountDisabledRoute
+  ) {
+    return redirectResponse(
+      request,
+      response,
+      "/",
+    );
+  }
+
+  /*
+   * Usuário autenticado não abre novamente
+   * login, cadastro ou convite.
+   */
+  if (
+    isAuthenticationRoute
+  ) {
+    return redirectResponse(
+      request,
+      response,
+      "/",
+    );
   }
 
   return response;

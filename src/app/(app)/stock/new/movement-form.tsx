@@ -1,13 +1,33 @@
 "use client";
 
-import { useFormState } from "react-dom";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  useFormState,
+} from "react-dom";
+import {
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  createMovement,
+  type StockState,
+} from "@/app/actions/stock";
+
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { createMovement, type StockState } from "@/app/actions/stock";
+import { Textarea } from "@/components/ui/textarea";
+
+type MovementType =
+  | "IN"
+  | "OUT"
+  | "ADJUST";
 
 interface ProductOpt {
   id: string;
@@ -16,77 +36,186 @@ interface ProductOpt {
   current_stock: number;
 }
 
-export function MovementForm({ products }: { products: ProductOpt[] }) {
-  const [state, formAction] = useFormState<StockState, FormData>(
-    createMovement,
-    null,
-  );
-  const [selectedId, setSelectedId] = useState(products[0]?.id ?? "");
-  const selected = products.find((p) => p.id === selectedId);
+type MovementFormProps = {
+  products: ProductOpt[];
+  allowedTypes: MovementType[];
+  canViewCost: boolean;
+};
 
-  const options = products.map((p) => ({
-    value: p.id,
-    label: `${p.name} (atual: ${p.current_stock} ${p.unit})`,
-  }));
+const TYPE_OPTIONS: Record<
+  MovementType,
+  string
+> = {
+  IN: "Entrada (compra/devolução)",
+  OUT: "Saída (venda/consumo)",
+  ADJUST: "Ajuste (inventário)",
+};
+
+export function MovementForm({
+  products,
+  allowedTypes,
+  canViewCost,
+}: MovementFormProps) {
+  const [state, formAction] =
+    useFormState<StockState, FormData>(
+      createMovement,
+      null,
+    );
+
+  const [selectedId, setSelectedId] =
+    useState(
+      products[0]?.id ?? "",
+    );
+
+  const [selectedType, setSelectedType] =
+    useState<MovementType>(
+      allowedTypes[0] ?? "IN",
+    );
+
+  const selected = products.find(
+    (product) =>
+      product.id === selectedId,
+  );
+
+  const productOptions = useMemo(
+    () =>
+      products.map((product) => ({
+        value: product.id,
+
+        label: `${product.name} (atual: ${product.current_stock} ${product.unit})`,
+      })),
+
+    [products],
+  );
+
+  const typeOptions = allowedTypes.map(
+    (type) => ({
+      value: type,
+      label: TYPE_OPTIONS[type],
+    }),
+  );
+
+  const isAdjustment =
+    selectedType === "ADJUST";
+
+  const showUnitCost =
+    selectedType === "IN" &&
+    canViewCost;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Dados da movimentação</CardTitle>
+        <CardTitle>
+          Dados da movimentação
+        </CardTitle>
       </CardHeader>
+
       <CardContent>
-        <form action={formAction} className="space-y-4">
-          {state?.error && !state.fieldErrors && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-              {state.error}
-            </div>
-          )}
+        <form
+          action={formAction}
+          className="space-y-4"
+        >
+          {state?.error &&
+            !state.fieldErrors && (
+              <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
+                {state.error}
+              </div>
+            )}
 
           <Select
             name="product_id"
             label="Produto"
             value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            options={options}
+            onChange={(event) =>
+              setSelectedId(
+                event.target.value,
+              )
+            }
+            options={productOptions}
             required
           />
+
+          {state?.fieldErrors
+            ?.product_id && (
+            <p className="-mt-3 text-xs text-red-600">
+              {
+                state.fieldErrors
+                  .product_id
+              }
+            </p>
+          )}
 
           <Select
             name="type"
             label="Tipo"
-            defaultValue="IN"
-            options={[
-              { value: "IN", label: "Entrada (compra/devolução)" },
-              { value: "OUT", label: "Saída (venda/consumo)" },
-              { value: "ADJUST", label: "Ajuste (inventário)" },
-            ]}
+            value={selectedType}
+            onChange={(event) =>
+              setSelectedType(
+                event.target
+                  .value as MovementType,
+              )
+            }
+            options={typeOptions}
             required
           />
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div
+            className={
+              showUnitCost
+                ? "grid gap-4 sm:grid-cols-2"
+                : "grid gap-4"
+            }
+          >
             <Input
               name="quantity"
               type="number"
               step="1"
-              label="Quantidade"
+              min={
+                isAdjustment
+                  ? "0"
+                  : "1"
+              }
+              label={
+                isAdjustment
+                  ? "Novo estoque"
+                  : "Quantidade"
+              }
+              hint={
+                isAdjustment
+                  ? "Informe a quantidade total que deverá permanecer no estoque"
+                  : undefined
+              }
               required
-              error={state?.fieldErrors?.quantity}
+              error={
+                state?.fieldErrors
+                  ?.quantity
+              }
             />
-            <Input
-              name="unit_cost"
-              type="number"
-              step="0.01"
-              min="0"
-              label="Custo unitário (R$)"
-              hint="Opcional, usado em entradas"
-            />
+
+            {showUnitCost && (
+              <Input
+                name="unit_cost"
+                type="number"
+                step="0.01"
+                min="0"
+                label="Custo unitário (R$)"
+                hint="Opcional, usado em entradas"
+                error={
+                  state?.fieldErrors
+                    ?.unit_cost
+                }
+              />
+            )}
           </div>
 
           {selected && (
             <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600">
               Estoque atual:{" "}
               <strong>
-                {selected.current_stock} {selected.unit}
+                {
+                  selected.current_stock
+                }{" "}
+                {selected.unit}
               </strong>
             </p>
           )}

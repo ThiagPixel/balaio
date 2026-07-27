@@ -1,7 +1,14 @@
 "use client";
 
-import { useFormState } from "react-dom";
 import { useState } from "react";
+import { useFormState } from "react-dom";
+
+import {
+  updateTenant,
+  type TenantState,
+} from "@/app/actions/tenant";
+import { slugify } from "@/lib/utils";
+
 import {
   Card,
   CardContent,
@@ -11,40 +18,95 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { updateTenant, type TenantState } from "@/app/actions/tenant";
-import { slugify } from "@/lib/utils";
-import type { Tenant } from "@/types/database";
 
-export function TenantForm({ tenant }: { tenant: Tenant | null }) {
-  const [state, formAction] = useFormState<TenantState, FormData>(
-    updateTenant,
-    null,
-  );
-  const [name, setName] = useState(tenant?.name ?? "");
-  const [slug, setSlug] = useState(tenant?.slug ?? "");
-  const [slugDirty, setSlugDirty] = useState(false);
+type CompanySettings = {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+};
 
-  function handleNameChange(v: string) {
-    setName(v);
-    if (!slugDirty) setSlug(slugify(v));
+type TenantFormProps = {
+  tenant: CompanySettings;
+  canUpdate: boolean;
+};
+
+export function TenantForm({
+  tenant,
+  canUpdate,
+}: TenantFormProps) {
+  const [state, formAction] =
+    useFormState<
+      TenantState,
+      FormData
+    >(
+      updateTenant,
+      null,
+    );
+
+  const [name, setName] =
+    useState(tenant.name);
+
+  const [slug, setSlug] =
+    useState(tenant.slug);
+
+  const [slugDirty, setSlugDirty] =
+    useState(false);
+
+  function handleNameChange(
+    value: string,
+  ) {
+    if (!canUpdate) {
+      return;
+    }
+
+    setName(value);
+
+    if (!slugDirty) {
+      setSlug(
+        slugify(value),
+      );
+    }
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Dados da empresa</CardTitle>
-        <CardDescription>Como sua empresa aparece no sistema</CardDescription>
+        <CardTitle>
+          Dados da empresa
+        </CardTitle>
+
+        <CardDescription>
+          Como sua empresa aparece no sistema
+        </CardDescription>
       </CardHeader>
+
       <CardContent>
-        <form action={formAction} className="space-y-4">
-          {state?.error && !state.fieldErrors && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">
-              {state.error}
-            </div>
-          )}
+        <form
+          action={formAction}
+          className="space-y-4"
+        >
+          {state?.error &&
+            !state.fieldErrors && (
+              <div
+                role="alert"
+                className="rounded-md bg-red-50 p-3 text-sm text-red-700"
+              >
+                {state.error}
+              </div>
+            )}
+
           {state?.success && (
             <div className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">
               {state.success}
+            </div>
+          )}
+
+          {!canUpdate && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              Você pode visualizar os dados,
+              mas não possui permissão para
+              alterá-los.
             </div>
           )}
 
@@ -52,28 +114,47 @@ export function TenantForm({ tenant }: { tenant: Tenant | null }) {
             name="name"
             label="Nome da empresa *"
             value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
+            onChange={(event) =>
+              handleNameChange(
+                event.target.value,
+              )
+            }
+            disabled={!canUpdate}
             required
-            error={state?.fieldErrors?.name}
+            error={
+              state?.fieldErrors?.name
+            }
           />
 
           <Input
             name="slug"
             label="Identificador (slug)"
             value={slug}
-            onChange={(e) => {
-              setSlug(e.target.value);
+            onChange={(event) => {
+              if (!canUpdate) {
+                return;
+              }
+
+              setSlug(
+                event.target.value,
+              );
+
               setSlugDirty(true);
             }}
+            disabled={!canUpdate}
             hint="Usado em URLs e identificadores. Apenas letras minúsculas, números e hífens."
-            error={state?.fieldErrors?.slug}
+            error={
+              state?.fieldErrors?.slug
+            }
           />
 
-          <div className="flex justify-end">
-            <SubmitButton pendingLabel="Salvando...">
-              Salvar alterações
-            </SubmitButton>
-          </div>
+          {canUpdate && (
+            <div className="flex justify-end">
+              <SubmitButton pendingLabel="Salvando...">
+                Salvar alterações
+              </SubmitButton>
+            </div>
+          )}
         </form>
       </CardContent>
     </Card>

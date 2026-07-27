@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useFormState } from "react-dom";
 
 import {
-  signup,
+  signupWithInvitation,
   type AuthState,
 } from "@/app/actions/auth";
 
@@ -18,13 +18,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 
-export function SignupForm() {
+type InvitationSignupFormProps = {
+  token: string;
+  email: string;
+  companyName: string;
+};
+
+export function InvitationSignupForm({
+  token,
+  email,
+  companyName,
+}: InvitationSignupFormProps) {
+  const action =
+    signupWithInvitation.bind(
+      null,
+      token,
+    );
+
   const [state, formAction] =
     useFormState<
       AuthState,
       FormData
     >(
-      signup,
+      action,
       null,
     );
 
@@ -37,12 +53,12 @@ export function SignupForm() {
     <Card>
       <CardHeader>
         <CardTitle>
-          Criar empresa
+          Entrar na empresa
         </CardTitle>
 
         <CardDescription>
-          Crie sua conta e a empresa para
-          começar
+          Você foi convidado para fazer
+          parte de {companyName}
         </CardDescription>
       </CardHeader>
 
@@ -66,22 +82,17 @@ export function SignupForm() {
             )}
 
           <Input
-            name="companyName"
-            type="text"
-            label="Nome da empresa"
-            placeholder="Minha Empresa Ltda"
-            required
-            autoComplete="organization"
-            error={
-              state?.fieldErrors
-                ?.companyName
-            }
+            name="invitedEmail"
+            type="email"
+            label="E-mail convidado"
+            value={email}
+            disabled
           />
 
           <Input
             name="fullName"
             type="text"
-            label="Seu nome"
+            label="Seu nome *"
             placeholder="João da Silva"
             required
             autoComplete="name"
@@ -92,21 +103,9 @@ export function SignupForm() {
           />
 
           <Input
-            name="email"
-            type="email"
-            label="Email"
-            placeholder="voce@empresa.com"
-            required
-            autoComplete="email"
-            error={
-              state?.fieldErrors?.email
-            }
-          />
-
-          <Input
             name="password"
             type="password"
-            label="Senha"
+            label="Senha *"
             placeholder="••••••••"
             required
             minLength={8}
@@ -117,15 +116,36 @@ export function SignupForm() {
             }
           />
 
+          <Input
+            name="passwordConfirm"
+            type="password"
+            label="Confirmar senha *"
+            placeholder="••••••••"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            error={
+              state?.fieldErrors
+                ?.passwordConfirm
+            }
+          />
+
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+            O acesso será criado para{" "}
+            <strong>{email}</strong>. Não é
+            possível aceitar o convite com
+            outro endereço.
+          </div>
+
           <SubmitButton
-            pendingLabel="Criando conta..."
+            pendingLabel="Criando acesso..."
             className="w-full"
           >
-            Criar conta
+            Aceitar convite
           </SubmitButton>
 
           <p className="text-center text-sm text-slate-600">
-            Já tem conta?{" "}
+            Já possui uma conta?{" "}
             <Link
               href="/login"
               className="font-medium text-brand-600 hover:text-brand-700"

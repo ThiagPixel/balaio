@@ -1,43 +1,119 @@
-// Tenant ID é obtido diretamente do banco via RPC (get_tenant_id)
+import "server-only";
+
+type AccountStatus = {
+  user_id: string;
+  tenant_id: string;
+  active: boolean;
+  role: "owner" | "member";
+};
+
+export class AccountDisabledError extends Error {
+  readonly code = "ACCOUNT_DISABLED";
+
+  constructor(
+    message =
+      "Sua conta está desativada. Entre em contato com o administrador da empresa.",
+  ) {
+    super(message);
+
+    this.name = "AccountDisabledError";
+  }
+}
+
+export function isAccountDisabledError(
+  error: unknown,
+): error is AccountDisabledError {
+  return (
+    error instanceof
+    AccountDisabledError
+  );
+}
 
 export async function requireTenant() {
-  const { createClient } = await import("./server");
-  const supabase = await createClient();
+  const { createClient } =
+    await import("./server");
+
+  const supabase =
+    await createClient();
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("Não autenticado");
+  if (userError || !user) {
+    throw new Error(
+      "Usuário não autenticado.",
+    );
+  }
 
-  // Busca tenant_id diretamente do banco via auth.uid()
-  // A função SQL public.get_tenant_id() usa security definer (bypassa RLS)
-  const { data, error } = await supabase.rpc("get_tenant_id");
-
-  if (error) {
-  console.error("Erro ao buscar tenant:", {
-    code: error.code,
-    message: error.message,
-    details: error.details,
-    hint: error.hint,
-  });
-
-  throw new Error(
-    `Erro ao buscar tenant: ${error.code} - ${error.message}`,
+  const {
+    data: accountRows,
+    error: accountError,
+  } = await supabase.rpc(
+    "get_my_account_status",
   );
-}
 
-if (!data) {
-  console.error("Tenant retornou vazio:", {
-    userId: user?.id,
-    email: user?.email,
-    data,
-  });
+  if (accountError) {
+    console.error(
+      "Erro ao carregar status da conta:",
+      {
+        userId: user.id,
+        code: accountError.code,
+        message:
+          accountError.message,
+        details:
+          accountError.details,
+        hint: accountError.hint,
+      },
+    );
 
-  throw new Error(
-    `Usuário autenticado, mas sem tenant vinculado: ${user?.id}`,
-  );
-}
+    throw new Error(
+      `Não foi possível carregar o status da conta: ${accountError.message}`,
+    );
+  }
 
-  return { supabase, user, tenantId: data as string };
+  const account =
+    accountRows?.[0] as
+      | AccountStatus
+      | undefined;
+
+  if (!account) {
+    console.error(
+      "Usuário autenticado sem vínculo empresarial:",
+      {
+        userId: user.id,
+        email: user.email,
+      },
+    );
+
+    throw new Error(
+      "Usuário autenticado, mas sem empresa vinculada.",
+    );
+  }
+
+  if (
+    account.user_id !== user.id
+  ) {
+    throw new Error(
+      "O vínculo retornado não pertence ao usuário autenticado.",
+    );
+  }
+
+  if (!account.active) {
+    throw new AccountDisabledError();
+  }
+
+  if (!account.tenant_id) {
+    throw new Error(
+      "Usuário sem empresa vinculada.",
+    );
+  }
+
+  return {
+    supabase,
+    user,
+    tenantId: account.tenant_id,
+    account,
+  };
 }
