@@ -27,6 +27,7 @@ type ProductListItem = {
   current_stock: number;
   min_stock: number;
   active: boolean;
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -181,6 +182,10 @@ export default async function ProductsPage({
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
+                  <th className="w-20 px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Foto
+                  </th>
+
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
                     Produto
                   </th>
@@ -227,6 +232,22 @@ export default async function ProductsPage({
                           : undefined
                       }
                     >
+                      <td className="px-4 py-3">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="h-12 w-12 rounded-lg object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-100">
+                            <span className="text-lg text-slate-400">
+                              📦
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-900">
                           {product.name}
@@ -340,7 +361,21 @@ export default async function ProductsPage({
                       : ""
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="h-14 w-14 flex-shrink-0 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                        <span className="text-xl text-slate-400">
+                          📦
+                        </span>
+                      </div>
+                    )}
+
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-medium text-slate-900">

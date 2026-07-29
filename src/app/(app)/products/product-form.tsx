@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Input } from "@/components/ui/input";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +29,7 @@ type ProductFormProduct = {
   sale_price: number | string;
   min_stock: number;
   current_stock: number;
+  image_url: string | null;
 };
 
 type ProductFormProps = {
@@ -109,14 +111,23 @@ export function ProductForm({
             />
           </div>
 
-          <Textarea
-            name="description"
-            label="Descrição"
-            rows={3}
-            defaultValue={
-              product?.description ?? ""
-            }
-          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <ImageUpload
+              name="image_url"
+              label="Foto do produto"
+              hint="JPEG, PNG, WebP ou GIF (máx. 10MB)"
+              defaultValue={product?.image_url}
+            />
+
+            <Textarea
+              name="description"
+              label="Descrição"
+              rows={3}
+              defaultValue={
+                product?.description ?? ""
+              }
+            />
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Input

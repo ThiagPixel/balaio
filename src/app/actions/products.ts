@@ -34,6 +34,13 @@ const productBaseSchema = z.object({
     .optional()
     .nullable(),
 
+  image_url: z
+    .string()
+    .url("URL de imagem inválida")
+    .optional()
+    .nullable()
+    .transform((val) => val || null),
+
   unit: z
     .string()
     .trim()
@@ -155,6 +162,13 @@ function normalizeProductFormData(
       raw.description.trim()
         ? raw.description.trim()
         : null,
+
+    image_url:
+      typeof raw.image_url ===
+        "string" &&
+      raw.image_url.trim()
+        ? raw.image_url.trim()
+        : null,
   };
 }
 
@@ -263,6 +277,8 @@ export async function createProduct(
         p_sku: parsed.data.sku,
         p_description:
           parsed.data.description,
+        p_image_url:
+          parsed.data.image_url,
         p_unit: parsed.data.unit,
         p_cost_price:
           parsed.data.cost_price,
@@ -371,6 +387,8 @@ export async function updateProduct(
         p_sku: parsed.data.sku,
         p_description:
           parsed.data.description,
+        p_image_url:
+          parsed.data.image_url,
         p_unit: parsed.data.unit,
         p_sale_price:
           parsed.data.sale_price,
