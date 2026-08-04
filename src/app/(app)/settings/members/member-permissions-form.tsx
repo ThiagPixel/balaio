@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState } from "react-dom";
 
 import {
@@ -30,10 +31,7 @@ type MemberPermissionsFormProps = {
   canManage: boolean;
 };
 
-const MODULE_LABELS: Record<
-  string,
-  string
-> = {
+const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   products: "Produtos",
   stock: "Estoque",
@@ -47,33 +45,48 @@ export function MemberPermissionsForm({
   permissions,
   canManage,
 }: MemberPermissionsFormProps) {
-  const action =
-    saveMemberPermissions.bind(
-      null,
-      member.id,
-    );
+  const action = saveMemberPermissions.bind(
+    null,
+    member.id,
+  );
 
   const [state, formAction] =
-    useFormState<
-      MemberActionState,
-      FormData
-    >(action, null);
+    useFormState<MemberActionState, FormData>(
+      action,
+      null,
+    );
+
+  const [selectedPermissions, setSelectedPermissions] =
+    useState<string[]>(member.permissions);
 
   const groupedPermissions =
-    permissions.reduce<
-      Record<string, PermissionItem[]>
-    >((groups, permission) => {
-      const module =
-        permission.module || "other";
+    permissions.reduce<Record<string, PermissionItem[]>>(
+      (groups, permission) => {
+        const module = permission.module || "other";
 
-      if (!groups[module]) {
-        groups[module] = [];
-      }
+        if (!groups[module]) {
+          groups[module] = [];
+        }
 
-      groups[module].push(permission);
+        groups[module].push(permission);
 
-      return groups;
-    }, {});
+        return groups;
+      },
+      {},
+    );
+
+  function toggleAll() {
+    if (
+      selectedPermissions.length ===
+      permissions.length
+    ) {
+      setSelectedPermissions([]);
+    } else {
+      setSelectedPermissions(
+        permissions.map((p) => p.key),
+      );
+    }
+  }
 
   return (
     <form
@@ -95,58 +108,89 @@ export function MemberPermissionsForm({
         </div>
       )}
 
-      {Object.entries(
-        groupedPermissions,
-      ).map(([module, items]) => (
-        <fieldset
-          key={module}
-          className="space-y-3"
-          disabled={!canManage}
-        >
-          <legend className="text-sm font-semibold text-slate-900">
-            {MODULE_LABELS[module] ||
-              module}
-          </legend>
+      {canManage && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-100"
+          >
+            {selectedPermissions.length === permissions.length
+              ? "Desmarcar todas"
+              : "Marcar todas"}
+          </button>
+        </div>
+      )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {items.map((permission) => (
-              <label
-                key={permission.key}
-                className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3"
-              >
-                <input
-                  type="checkbox"
-                  name="permissions"
-                  value={permission.key}
-                  defaultChecked={member.permissions.includes(
-                    permission.key,
-                  )}
-                  disabled={!canManage}
-                  className="mt-1 h-4 w-4 rounded border-slate-300"
-                />
+      {Object.entries(groupedPermissions).map(
+        ([module, items]) => (
+          <fieldset
+            key={module}
+            className="space-y-3"
+            disabled={!canManage}
+          >
+            <legend className="text-sm font-semibold text-slate-900">
+              {MODULE_LABELS[module] ??
+                module}
+            </legend>
 
-                <span>
-                  <span className="block text-sm font-medium text-slate-900">
-                    {permission.name}
-                  </span>
-
-                  {permission.description && (
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      {
-                        permission.description
+            <div className="grid gap-3 sm:grid-cols-2">
+              {items.map((permission) => (
+                <label
+                  key={permission.key}
+                  className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3"
+                >
+                  <input
+                    type="checkbox"
+                    name="permissions"
+                    value={permission.key}
+                    checked={selectedPermissions.includes(
+                      permission.key,
+                    )}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedPermissions(
+                          (prev) => [
+                            ...prev,
+                            permission.key,
+                          ],
+                        );
+                      } else {
+                        setSelectedPermissions(
+                          (prev) =>
+                            prev.filter(
+                              (p) =>
+                                p !==
+                                permission.key,
+                            ),
+                        );
                       }
-                    </span>
-                  )}
+                    }}
+                    disabled={!canManage}
+                    className="mt-1 h-4 w-4 rounded border-slate-300"
+                  />
 
-                  <span className="mt-1 block font-mono text-[10px] text-slate-400">
-                    {permission.key}
+                  <span>
+                    <span className="block text-sm font-medium text-slate-900">
+                      {permission.name}
+                    </span>
+
+                    {permission.description && (
+                      <span className="mt-0.5 block text-xs text-slate-500">
+                        {permission.description}
+                      </span>
+                    )}
+
+                    <span className="mt-1 block font-mono text-[10px] text-slate-400">
+                      {permission.key}
+                    </span>
                   </span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ),
+      )}
 
       {canManage && (
         <div className="flex justify-end">
