@@ -57,6 +57,9 @@ export function TransactionForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   const [status, setStatus] =
     useState<TransactionStatus>(
       "PENDING",
@@ -103,6 +106,7 @@ export function TransactionForm({
         <form
           action={formAction}
           className="space-y-4"
+          onSubmit={() => setIsSubmitting(true)}
         >
           {state?.error &&
             !state.fieldErrors && (
@@ -267,7 +271,10 @@ export function TransactionForm({
           )}
 
           <div className="flex justify-end gap-3 pt-4">
-            <SubmitButton pendingLabel="Salvando...">
+            <SubmitButton
+              pendingLabel="Salvando..."
+              disabled={isSubmitting}
+            >
               Criar lançamento
             </SubmitButton>
           </div>

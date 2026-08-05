@@ -56,6 +56,9 @@ export function MemberPermissionsForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   const [selectedPermissions, setSelectedPermissions] =
     useState<string[]>(member.permissions);
 
@@ -92,6 +95,7 @@ export function MemberPermissionsForm({
     <form
       action={formAction}
       className="space-y-5"
+      onSubmit={() => setIsSubmitting(true)}
     >
       {state?.error && (
         <div
@@ -196,7 +200,8 @@ export function MemberPermissionsForm({
         <div className="flex justify-end">
           <button
             type="submit"
-            className="inline-flex h-10 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700"
+            disabled={isSubmitting}
+            className="inline-flex h-10 items-center justify-center rounded-md bg-brand-600 px-4 text-sm font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Salvar permissões
           </button>

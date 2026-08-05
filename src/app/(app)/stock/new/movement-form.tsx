@@ -62,6 +62,9 @@ export function MovementForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   const [selectedId, setSelectedId] =
     useState(
       products[0]?.id ?? "",
@@ -114,6 +117,7 @@ export function MovementForm({
         <form
           action={formAction}
           className="space-y-4"
+          onSubmit={() => setIsSubmitting(true)}
         >
           {state?.error &&
             !state.fieldErrors && (
@@ -228,7 +232,10 @@ export function MovementForm({
           />
 
           <div className="flex justify-end gap-3 pt-4">
-            <SubmitButton pendingLabel="Salvando...">
+            <SubmitButton
+              pendingLabel="Salvando..."
+              disabled={isSubmitting}
+            >
               Registrar movimentação
             </SubmitButton>
           </div>

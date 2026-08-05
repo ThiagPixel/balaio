@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useFormState } from "react-dom";
 
 import {
@@ -59,6 +60,9 @@ export function ProductForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   return (
     <Card>
       <CardHeader>
@@ -73,6 +77,7 @@ export function ProductForm({
         <form
           action={formAction}
           className="space-y-4"
+          onSubmit={() => setIsSubmitting(true)}
         >
           {state?.error &&
             !state.fieldErrors && (
@@ -226,7 +231,10 @@ export function ProductForm({
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <SubmitButton pendingLabel="Salvando...">
+            <SubmitButton
+              pendingLabel="Salvando..."
+              disabled={isSubmitting}
+            >
               {product
                 ? "Salvar alterações"
                 : "Criar produto"}

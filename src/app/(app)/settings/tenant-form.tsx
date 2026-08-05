@@ -44,6 +44,9 @@ export function TenantForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   const [name, setName] =
     useState(tenant.name);
 
@@ -85,6 +88,7 @@ export function TenantForm({
         <form
           action={formAction}
           className="space-y-4"
+          onSubmit={() => setIsSubmitting(true)}
         >
           {state?.error &&
             !state.fieldErrors && (
@@ -150,7 +154,10 @@ export function TenantForm({
 
           {canUpdate && (
             <div className="flex justify-end">
-              <SubmitButton pendingLabel="Salvando...">
+              <SubmitButton
+                pendingLabel="Salvando..."
+                disabled={isSubmitting}
+              >
                 Salvar alterações
               </SubmitButton>
             </div>

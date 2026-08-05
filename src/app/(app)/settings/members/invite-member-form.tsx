@@ -44,6 +44,9 @@ export function InviteMemberForm({
       null,
     );
 
+  const [isSubmitting, setIsSubmitting] =
+    useState(false);
+
   const [copied, setCopied] =
     useState(false);
 
@@ -133,6 +136,7 @@ export function InviteMemberForm({
     <form
       action={formAction}
       className="space-y-5"
+      onSubmit={() => setIsSubmitting(true)}
     >
       {state?.error &&
         !state.fieldErrors && (
@@ -324,7 +328,10 @@ export function InviteMemberForm({
       </div>
 
       <div className="flex justify-end">
-        <SubmitButton pendingLabel="Criando convite...">
+        <SubmitButton
+          pendingLabel="Criando convite..."
+          disabled={isSubmitting}
+        >
           Gerar link de convite
         </SubmitButton>
       </div>
