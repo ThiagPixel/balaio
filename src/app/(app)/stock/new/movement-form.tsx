@@ -4,8 +4,11 @@ import {
   useFormState,
 } from "react-dom";
 import {
+  useEffect,
   useMemo,
+  useRef,
   useState,
+  type FormEvent,
 } from "react";
 
 import {
@@ -65,6 +68,28 @@ export function MovementForm({
   const [isSubmitting, setIsSubmitting] =
     useState(false);
 
+  /*
+   * Trava síncrona.
+   *
+   * Diferente do useState, alterar .current
+   * NÃO depende de uma nova renderização.
+   *
+   * Assim que o primeiro submit acontece,
+   * qualquer outro submit já encontra true.
+   */
+  const submittingRef =
+    useRef(false);
+
+  /*
+   * Referência somente para a área onde
+   * está o botão de submit.
+   *
+   * Isso evita pegar algum botão que possa
+   * existir dentro dos componentes Select.
+   */
+  const submitAreaRef =
+    useRef<HTMLDivElement>(null);
+
   const [selectedId, setSelectedId] =
     useState(
       products[0]?.id ?? "",
@@ -74,6 +99,98 @@ export function MovementForm({
     useState<MovementType>(
       allowedTypes[0] ?? "IN",
     );
+
+  function handleSubmitCapture(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    /*
+     * Se já houve um submit,
+     * bloqueia qualquer outro imediatamente.
+     */
+    if (submittingRef.current) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      return;
+    }
+
+    /*
+     * PRIMEIRA COISA:
+     * trava imediatamente.
+     *
+     * Não espera React.
+     * Não espera render.
+     * Não espera resposta do servidor.
+     */
+    submittingRef.current = true;
+
+    /*
+     * Mantemos o state porque o SubmitButton
+     * já utiliza disabled={isSubmitting}.
+     *
+     * Mas ele agora é apenas uma camada
+     * adicional, não nossa única proteção.
+     */
+    setIsSubmitting(true);
+
+    /*
+     * Também desabilitamos o botão diretamente
+     * no DOM.
+     *
+     * Isso acontece durante o próprio evento
+     * de submit, antes de esperar um novo
+     * render do React.
+     */
+    const button =
+      submitAreaRef.current?.querySelector(
+        "button",
+      );
+
+    if (button) {
+      button.disabled = true;
+
+      button.style.pointerEvents =
+        "none";
+
+      button.setAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+  }
+
+  /*
+   * Quando o Server Action responder e o
+   * state mudar, permitimos uma nova tentativa.
+   *
+   * Isso é importante caso createMovement
+   * retorne um erro de validação, estoque, etc.
+   */
+  useEffect(() => {
+    if (!state) {
+      return;
+    }
+
+    submittingRef.current = false;
+
+    setIsSubmitting(false);
+
+    const button =
+      submitAreaRef.current?.querySelector(
+        "button",
+      );
+
+    if (button) {
+      button.disabled = false;
+
+      button.style.pointerEvents =
+        "";
+
+      button.removeAttribute(
+        "aria-disabled",
+      );
+    }
+  }, [state]);
 
   const selected = products.find(
     (product) =>
@@ -117,7 +234,9 @@ export function MovementForm({
         <form
           action={formAction}
           className="space-y-4"
-          onSubmit={() => setIsSubmitting(true)}
+          onSubmitCapture={
+            handleSubmitCapture
+          }
         >
           {state?.error &&
             !state.fieldErrors && (
@@ -231,7 +350,10 @@ export function MovementForm({
             placeholder="Motivo, fornecedor, etc."
           />
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div
+            ref={submitAreaRef}
+            className="flex justify-end gap-3 pt-4"
+          >
             <SubmitButton
               pendingLabel="Salvando..."
               disabled={isSubmitting}
