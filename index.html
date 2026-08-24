@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Balaio - Totem</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login -->
+  <div id="loginView" class="login-box">
+    <h2>Entrar</h2>
+    <form id="loginForm">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="email" required placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="password" required placeholder="••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Entrar</button>
+    </form>
+    <p class="signup-link">
+      Não tem conta? <a href="#" id="showSignup">Cadastre-se</a>
+    </p>
+  </div>
+
+  <!-- Signup -->
+  <div id="signupView" class="login-box hidden">
+    <h2>Cadastro</h2>
+    <form id="signupForm">
+      <div class="form-group">
+        <label>Nome</label>
+        <input type="text" id="signupName" required placeholder="Seu nome">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="signupEmail" required placeholder="seu@email.com">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="signupPassword" required minlength="6" placeholder="••••••">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Cadastrar</button>
+    </form>
+    <p class="signup-link">
+      Já tem conta? <a href="#" id="showLogin">Entrar</a>
+    </p>
+  </div>
+
+  <!-- App -->
+  <div id="appView" class="container hidden">
+    <div class="header">
+      <h1>📦 Retirar</h1>
+      <button id="logoutBtn" class="btn btn-secondary">Sair</button>
+    </div>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Buscar produto por nome ou SKU...">
+    </div>
+
+    <div id="productList" class="product-list">
+      <div class="loading">Carregando produtos...</div>
+    </div>
+  </div>
+
+  <!-- Modal Baixa -->
+  <div id="baixaModal" class="modal-overlay">
+    <div class="modal">
+      <h3>Retirar</h3>
+      <div class="modal-info">
+        <p><strong id="modalProductName"></strong></p>
+        <p>Estoque atual: <strong id="modalCurrentStock"></strong></p>
+      </div>
+      <form id="baixaForm">
+        <div class="form-group">
+          <label>Quantidade</label>
+          <input type="number" id="baixaQuantity" min="1" required>
+        </div>
+        <div class="form-group">
+          <label>Observação (opcional)</label>
+          <input type="text" id="baixaNotes" placeholder="Ex: Venda, Perda, Brinde...">
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelBaixa" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
