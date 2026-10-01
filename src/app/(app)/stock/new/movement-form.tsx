@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -245,28 +246,15 @@ export function MovementForm({
               </div>
             )}
 
-          <Select
+          <SearchableSelect
             name="product_id"
             label="Produto"
             value={selectedId}
-            onChange={(event) =>
-              setSelectedId(
-                event.target.value,
-              )
-            }
+            onChange={setSelectedId}
             options={productOptions}
+            error={state?.fieldErrors?.product_id}
             required
           />
-
-          {state?.fieldErrors
-            ?.product_id && (
-            <p className="-mt-3 text-xs text-red-600">
-              {
-                state.fieldErrors
-                  .product_id
-              }
-            </p>
-          )}
 
           <Select
             name="type"
