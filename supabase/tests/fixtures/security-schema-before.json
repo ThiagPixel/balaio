@@ -1,0 +1,1888 @@
+{
+  "source": "Inventário de schema recebido em 2026-10-01; somente estrutura, sem registros reais.",
+  "functions": [
+    {
+      "schema_name": "private",
+      "function_name": "current_tenant_id",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION private.current_tenant_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select u.tenant_id\r\n  from public.users as u\r\n  where u.id = (select auth.uid())\r\n    and u.active = true\r\n  limit 1;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "private",
+      "function_name": "current_user_is_active",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION private.current_user_is_active()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.users as u\r\n    where u.id = (select auth.uid())\r\n      and u.active = true\r\n  );\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "private",
+      "function_name": "has_permission",
+      "arguments": "p_permission_key text",
+      "definition": "CREATE OR REPLACE FUNCTION private.has_permission(p_permission_key text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.users as u\r\n    join public.permissions as p\r\n      on p.key = p_permission_key\r\n    where u.id = (select auth.uid())\r\n      and u.active = true\r\n      and (\r\n        u.role = 'owner'\r\n        or exists (\r\n          select 1\r\n          from private.user_permissions as up\r\n          where up.user_id = u.id\r\n            and up.permission_key = p.key\r\n        )\r\n      )\r\n  );\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "private",
+      "function_name": "is_owner",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION private.is_owner()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.users as u\r\n    where u.id = (select auth.uid())\r\n      and u.active = true\r\n      and u.role = 'owner'\r\n  );\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": false,
+        "authenticated": false
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "has_permission",
+      "arguments": "p_permission_key text",
+      "definition": "CREATE OR REPLACE FUNCTION public.has_permission(p_permission_key text)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\r\n  select private.has_permission(p_permission_key);\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "set_updated_at",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  new.updated_at = now();\r\n  return new;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": false
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_tenant_id",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_tenant_id()\n RETURNS uuid\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  select u.tenant_id into v_tenant_id\r\n  from public.users u\r\n  where u.id = auth.uid();\r\n  return v_tenant_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_my_permissions",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_my_permissions()\n RETURNS TABLE(permission_key text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select p.key\r\n  from public.permissions as p\r\n  join public.users as u\r\n    on u.id = (select auth.uid())\r\n   and u.active = true\r\n  where\r\n    u.role = 'owner'\r\n    or exists (\r\n      select 1\r\n      from private.user_permissions as up\r\n      where up.user_id = u.id\r\n        and up.permission_key = p.key\r\n    )\r\n  order by\r\n    p.sort_order,\r\n    p.key;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_my_access_context",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_my_access_context()\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select jsonb_build_object(\r\n    'user_id',\r\n    u.id,\r\n\r\n    'email',\r\n    u.email,\r\n\r\n    'full_name',\r\n    u.full_name,\r\n\r\n    'role',\r\n    u.role,\r\n\r\n    'active',\r\n    u.active,\r\n\r\n    'tenant',\r\n    jsonb_build_object(\r\n      'id',\r\n      tenant.id,\r\n\r\n      'name',\r\n      tenant.name,\r\n\r\n      'slug',\r\n      tenant.slug\r\n    ),\r\n\r\n    'permissions',\r\n    coalesce(\r\n      (\r\n        select jsonb_agg(\r\n          p.key\r\n          order by p.sort_order, p.key\r\n        )\r\n        from public.permissions as p\r\n        where\r\n          u.role = 'owner'\r\n          or exists (\r\n            select 1\r\n            from private.user_permissions as up\r\n            where up.user_id = u.id\r\n              and up.permission_key = p.key\r\n          )\r\n      ),\r\n      '[]'::jsonb\r\n    )\r\n  )\r\n  from public.users as u\r\n  join public.tenants as tenant\r\n    on tenant.id = u.tenant_id\r\n  where u.id = (select auth.uid())\r\n    and u.active = true\r\n  limit 1;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_tenant_members",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_tenant_members()\n RETURNS TABLE(user_id uuid, email text, full_name text, role text, active boolean, created_at timestamp with time zone, permissions text[])\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  /*\r\n   * O usuário precisa estar ativo e possuir members.view.\r\n   *\r\n   * O owner possui essa permissão implicitamente.\r\n   */\r\n  if not private.has_permission('members.view') then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar os usuários.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  return query\r\n  select\r\n    member.id,\r\n    member.email,\r\n    member.full_name,\r\n    member.role,\r\n    member.active,\r\n    member.created_at,\r\n\r\n    case\r\n      /*\r\n       * Owners recebem todo o catálogo de permissões.\r\n       */\r\n      when member.role = 'owner' then\r\n        coalesce(\r\n          (\r\n            select array_agg(\r\n              permission.key\r\n              order by permission.sort_order, permission.key\r\n            )\r\n            from public.permissions as permission\r\n          ),\r\n          array[]::text[]\r\n        )\r\n\r\n      /*\r\n       * Members recebem apenas as permissões atribuídas.\r\n       */\r\n      else\r\n        coalesce(\r\n          (\r\n            select array_agg(\r\n              user_permission.permission_key\r\n              order by permission.sort_order, permission.key\r\n            )\r\n            from private.user_permissions as user_permission\r\n            join public.permissions as permission\r\n              on permission.key =\r\n                 user_permission.permission_key\r\n            where user_permission.user_id = member.id\r\n          ),\r\n          array[]::text[]\r\n        )\r\n    end as permissions\r\n\r\n  from public.users as member\r\n  where member.tenant_id = v_tenant_id\r\n\r\n  order by\r\n    case\r\n      when member.role = 'owner' then 0\r\n      else 1\r\n    end,\r\n    member.full_name nulls last,\r\n    member.email;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_stock_movements",
+      "arguments": "p_limit integer",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_stock_movements(p_limit integer DEFAULT 100)\n RETURNS TABLE(id uuid, movement_type text, quantity integer, unit_cost numeric, notes text, created_at timestamp with time zone, product_id uuid, product_name text, product_unit text, created_by uuid, created_by_name text, created_by_email text)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_can_view_cost boolean;\r\n  v_limit integer;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission('stock.view') then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar o estoque.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  v_can_view_cost :=\r\n    private.has_permission(\r\n      'products.view_cost'\r\n    );\r\n\r\n  v_limit := least(\r\n    greatest(\r\n      coalesce(p_limit, 100),\r\n      1\r\n    ),\r\n    500\r\n  );\r\n\r\n  return query\r\n  select\r\n    movement.id,\r\n    movement.type,\r\n    movement.quantity,\r\n\r\n    case\r\n      when v_can_view_cost\r\n        then movement.unit_cost\r\n      else null::numeric\r\n    end,\r\n\r\n    movement.notes,\r\n    movement.created_at,\r\n\r\n    product.id,\r\n    product.name,\r\n    product.unit,\r\n\r\n    movement.created_by,\r\n    app_user.full_name,\r\n    app_user.email\r\n\r\n  from public.stock_movements as movement\r\n\r\n  join public.products as product\r\n    on product.id = movement.product_id\r\n    and product.tenant_id = movement.tenant_id\r\n\r\n  left join public.users as app_user\r\n    on app_user.id = movement.created_by\r\n    and app_user.tenant_id = movement.tenant_id\r\n\r\n  where movement.tenant_id = v_tenant_id\r\n\r\n  order by movement.created_at desc\r\n\r\n  limit v_limit;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_product",
+      "arguments": "p_product_id uuid",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_product(p_product_id uuid)\n RETURNS TABLE(id uuid, tenant_id uuid, name text, sku text, description text, image_url text, unit text, cost_price numeric, sale_price numeric, min_stock integer, current_stock integer, active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nBEGIN\r\n  RETURN QUERY\r\n  SELECT p.id, p.tenant_id, p.name, p.sku, p.description, p.image_url,\r\n         p.unit, p.cost_price, p.sale_price, p.min_stock, p.current_stock,\r\n         p.active, p.created_at, p.updated_at\r\n  FROM public.products p\r\n  WHERE p.id = p_product_id\r\n    AND p.tenant_id = (SELECT u.tenant_id FROM public.users u WHERE u.id = auth.uid());\r\nEND;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_products",
+      "arguments": "p_query text",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_products(p_query text)\n RETURNS TABLE(id uuid, tenant_id uuid, name text, sku text, description text, image_url text, unit text, cost_price numeric, sale_price numeric, min_stock integer, current_stock integer, active boolean, created_at timestamp with time zone, updated_at timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_tenant_id uuid;\r\nBEGIN\r\n  SELECT u.tenant_id INTO v_tenant_id\r\n  FROM public.users u\r\n  WHERE u.id = auth.uid();\r\n\r\n  RETURN QUERY\r\n  SELECT p.id, p.tenant_id, p.name, p.sku, p.description, p.image_url,\r\n         p.unit, p.cost_price, p.sale_price, p.min_stock, p.current_stock,\r\n         p.active, p.created_at, p.updated_at\r\n  FROM public.products p\r\n  WHERE p.tenant_id = v_tenant_id\r\n    AND (p_query IS NULL OR p_query = '' OR p.name ILIKE '%' || p_query || '%' OR p.sku ILIKE '%' || p_query || '%')\r\n  ORDER BY p.name;\r\nEND;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "set_product_active",
+      "arguments": "p_product_id uuid, p_active boolean",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_product_active(p_product_id uuid, p_active boolean)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_product_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'products.toggle_active'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para alterar o status de produtos.';\r\n  end if;\r\n\r\n  if p_product_id is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Produto não informado.';\r\n  end if;\r\n\r\n  if p_active is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Status não informado.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  update public.products\r\n  set\r\n    active = p_active,\r\n    updated_at = now()\r\n  where id = p_product_id\r\n    and tenant_id = v_tenant_id\r\n  returning id into v_product_id;\r\n\r\n  if v_product_id is null then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Produto não encontrado nesta empresa.';\r\n  end if;\r\n\r\n  return v_product_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "delete_product",
+      "arguments": "p_product_id uuid",
+      "definition": "CREATE OR REPLACE FUNCTION public.delete_product(p_product_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_product_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'products.delete'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para excluir produtos.';\r\n  end if;\r\n\r\n  if p_product_id is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Produto não informado.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  /*\r\n   * Bloqueia a linha antes de verificar movimentações.\r\n   */\r\n  select product.id\r\n  into v_product_id\r\n  from public.products as product\r\n  where product.id = p_product_id\r\n    and product.tenant_id = v_tenant_id\r\n  for update;\r\n\r\n  if v_product_id is null then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Produto não encontrado nesta empresa.';\r\n  end if;\r\n\r\n  /*\r\n   * products possui ON DELETE CASCADE em stock_movements.\r\n   *\r\n   * Sem esta validação, excluir o produto apagaria todo o\r\n   * histórico de entradas e retiradas.\r\n   */\r\n  if exists (\r\n    select 1\r\n    from public.stock_movements as movement\r\n    where movement.product_id = p_product_id\r\n      and movement.tenant_id = v_tenant_id\r\n  ) then\r\n    raise exception using\r\n      errcode = '23503',\r\n      message = 'Produtos com movimentações não podem ser excluídos. Desative o produto para preservar o histórico.';\r\n  end if;\r\n\r\n  delete from public.products\r\n  where id = p_product_id\r\n    and tenant_id = v_tenant_id;\r\n\r\n  return v_product_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "execute_stock_movement",
+      "arguments": "p_product_id uuid, p_type text, p_quantity integer, p_unit_cost numeric, p_notes text",
+      "definition": "CREATE OR REPLACE FUNCTION public.execute_stock_movement(p_product_id uuid, p_type text, p_quantity integer, p_unit_cost numeric, p_notes text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_user_id uuid;\r\n  v_tenant_id uuid;\r\n\r\n  v_type text;\r\n  v_required_permission text;\r\n\r\n  v_old_stock integer;\r\n  v_new_stock integer;\r\n  v_product_active boolean;\r\n\r\n  v_unit_cost numeric;\r\n  v_notes text;\r\n\r\n  v_movement_id uuid;\r\nbegin\r\n  v_user_id := auth.uid();\r\n\r\n  if v_user_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  if p_product_id is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Produto não informado.';\r\n  end if;\r\n\r\n  v_type := upper(\r\n    btrim(\r\n      coalesce(p_type, '')\r\n    )\r\n  );\r\n\r\n  /*\r\n   * Define a permissão necessária com base no tipo.\r\n   */\r\n  case v_type\r\n    when 'IN' then\r\n      v_required_permission := 'stock.in';\r\n\r\n    when 'OUT' then\r\n      v_required_permission := 'stock.out';\r\n\r\n    when 'ADJUST' then\r\n      v_required_permission := 'stock.adjust';\r\n\r\n    else\r\n      raise exception using\r\n        errcode = '22023',\r\n        message = 'Tipo de movimentação inválido.';\r\n  end case;\r\n\r\n  if not private.has_permission(\r\n    v_required_permission\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = case v_type\r\n        when 'IN' then\r\n          'Você não possui permissão para registrar entradas.'\r\n        when 'OUT' then\r\n          'Você não possui permissão para registrar retiradas.'\r\n        else\r\n          'Você não possui permissão para ajustar o estoque.'\r\n      end;\r\n  end if;\r\n\r\n  /*\r\n   * IN e OUT representam quantidades movimentadas.\r\n   * Portanto, precisam ser maiores que zero.\r\n   *\r\n   * ADJUST representa o novo estoque absoluto e aceita zero.\r\n   */\r\n  if v_type in ('IN', 'OUT') then\r\n    if p_quantity is null or p_quantity <= 0 then\r\n      raise exception using\r\n        errcode = '22023',\r\n        message = 'A quantidade deve ser maior que zero.';\r\n    end if;\r\n  else\r\n    if p_quantity is null or p_quantity < 0 then\r\n      raise exception using\r\n        errcode = '22023',\r\n        message = 'O novo estoque não pode ser negativo.';\r\n    end if;\r\n  end if;\r\n\r\n  if p_unit_cost is not null and p_unit_cost < 0 then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'O custo unitário não pode ser negativo.';\r\n  end if;\r\n\r\n  /*\r\n   * Custo unitário faz sentido apenas em entradas.\r\n   */\r\n  if v_type = 'IN' then\r\n    if\r\n      p_unit_cost is not null\r\n      and not private.has_permission(\r\n        'products.view_cost'\r\n      )\r\n    then\r\n      raise exception using\r\n        errcode = '42501',\r\n        message = 'Você não possui permissão para informar o custo unitário.';\r\n    end if;\r\n\r\n    v_unit_cost := p_unit_cost;\r\n  else\r\n    v_unit_cost := null;\r\n  end if;\r\n\r\n  v_notes := nullif(\r\n    btrim(p_notes),\r\n    ''\r\n  );\r\n\r\n  /*\r\n   * Busca e bloqueia o produto.\r\n   *\r\n   * FOR UPDATE impede que duas movimentações simultâneas\r\n   * calculem o estoque a partir do mesmo valor antigo.\r\n   */\r\n  select\r\n    product.current_stock,\r\n    product.active\r\n  into\r\n    v_old_stock,\r\n    v_product_active\r\n  from public.products as product\r\n  where product.id = p_product_id\r\n    and product.tenant_id = v_tenant_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Produto não encontrado nesta empresa.';\r\n  end if;\r\n\r\n  if v_product_active = false then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Não é possível movimentar um produto inativo.';\r\n  end if;\r\n\r\n  /*\r\n   * Calcula o estoque somente no banco.\r\n   */\r\n  case v_type\r\n    when 'IN' then\r\n      v_new_stock :=\r\n        v_old_stock + p_quantity;\r\n\r\n    when 'OUT' then\r\n      v_new_stock :=\r\n        v_old_stock - p_quantity;\r\n\r\n    when 'ADJUST' then\r\n      v_new_stock :=\r\n        p_quantity;\r\n  end case;\r\n\r\n  if v_new_stock < 0 then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message =\r\n        'Estoque insuficiente. A retirada deixaria o estoque negativo.';\r\n  end if;\r\n\r\n  update public.products\r\n  set\r\n    current_stock = v_new_stock,\r\n    updated_at = now()\r\n  where id = p_product_id\r\n    and tenant_id = v_tenant_id;\r\n\r\n  insert into public.stock_movements (\r\n    tenant_id,\r\n    product_id,\r\n    type,\r\n    quantity,\r\n    unit_cost,\r\n    notes,\r\n    created_by\r\n  )\r\n  values (\r\n    v_tenant_id,\r\n    p_product_id,\r\n    v_type,\r\n    p_quantity,\r\n    v_unit_cost,\r\n    v_notes,\r\n    v_user_id\r\n  )\r\n  returning id into v_movement_id;\r\n\r\n  return jsonb_build_object(\r\n    'movement_id',\r\n    v_movement_id,\r\n    'product_id',\r\n    p_product_id,\r\n    'type',\r\n    v_type,\r\n    'quantity',\r\n    p_quantity,\r\n    'old_stock',\r\n    v_old_stock,\r\n    'new_stock',\r\n    v_new_stock,\r\n    'created_by',\r\n    v_user_id\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_stock_products",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_stock_products()\n RETURNS TABLE(id uuid, name text, unit text, current_stock integer)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not (\r\n    private.has_permission('stock.in')\r\n    or private.has_permission('stock.out')\r\n    or private.has_permission('stock.adjust')\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para movimentar estoque.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem tenant ativo.';\r\n  end if;\r\n\r\n  return query\r\n  select\r\n    product.id,\r\n    product.name,\r\n    product.unit,\r\n    product.current_stock\r\n\r\n  from public.products as product\r\n\r\n  where product.tenant_id = v_tenant_id\r\n    and product.active = true\r\n\r\n  order by lower(product.name);\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_financial_transactions",
+      "arguments": "p_type text, p_status text",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_financial_transactions(p_type text DEFAULT NULL::text, p_status text DEFAULT NULL::text)\n RETURNS TABLE(id uuid, transaction_type text, category text, description text, amount numeric, due_date date, paid_at date, transaction_status text, notes text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_type text;\r\n  v_status text;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission('finance.view') then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar o financeiro.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  v_type := upper(\r\n    nullif(btrim(p_type), '')\r\n  );\r\n\r\n  v_status := upper(\r\n    nullif(btrim(p_status), '')\r\n  );\r\n\r\n  if\r\n    v_type is not null\r\n    and v_type not in ('INCOME', 'EXPENSE')\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Tipo financeiro inválido.';\r\n  end if;\r\n\r\n  if\r\n    v_status is not null\r\n    and v_status not in (\r\n      'PENDING',\r\n      'PAID',\r\n      'CANCELLED'\r\n    )\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Status financeiro inválido.';\r\n  end if;\r\n\r\n  return query\r\n  select\r\n    transaction.id,\r\n    transaction.type,\r\n    transaction.category,\r\n    transaction.description,\r\n    transaction.amount,\r\n    transaction.due_date,\r\n    transaction.paid_at,\r\n    transaction.status,\r\n    transaction.notes,\r\n    transaction.created_at\r\n\r\n  from public.transactions as transaction\r\n\r\n  where transaction.tenant_id = v_tenant_id\r\n    and (\r\n      v_type is null\r\n      or transaction.type = v_type\r\n    )\r\n    and (\r\n      v_status is null\r\n      or transaction.status = v_status\r\n    )\r\n\r\n  order by\r\n    transaction.due_date asc,\r\n    transaction.created_at desc;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_company_settings",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_company_settings()\n RETURNS TABLE(id uuid, name text, slug text, created_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission('settings.view') then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar as configurações.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  return query\r\n  select\r\n    tenant.id,\r\n    tenant.name,\r\n    tenant.slug,\r\n    tenant.created_at\r\n  from public.tenants as tenant\r\n  where tenant.id = v_tenant_id\r\n  limit 1;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "create_member_invitation",
+      "arguments": "p_email text, p_token_hash text, p_permission_keys text[], p_expires_at timestamp with time zone",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_member_invitation(p_email text, p_token_hash text, p_permission_keys text[], p_expires_at timestamp with time zone)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_email text;\r\n  v_permission_keys text[];\r\n  v_invitation_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'members.invite'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para convidar usuários.';\r\n  end if;\r\n\r\n  v_tenant_id :=\r\n    private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  v_email :=\r\n    lower(nullif(btrim(p_email), ''));\r\n\r\n  if v_email is null then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'E-mail obrigatório.';\r\n  end if;\r\n\r\n  if v_email !~\r\n    '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$'\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'E-mail inválido.';\r\n  end if;\r\n\r\n  if p_token_hash is null\r\n    or p_token_hash !~ '^[a-f0-9]{64}$'\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Token de convite inválido.';\r\n  end if;\r\n\r\n  if p_expires_at is null\r\n    or p_expires_at <= now()\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'A validade do convite é inválida.';\r\n  end if;\r\n\r\n  if p_expires_at > now() + interval '30 days'\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'O convite não pode durar mais que 30 dias.';\r\n  end if;\r\n\r\n  if exists (\r\n    select 1\r\n    from public.users as app_user\r\n    where lower(app_user.email) = v_email\r\n  ) then\r\n    raise exception using\r\n      errcode = '23505',\r\n      message = 'Este e-mail já está vinculado a uma empresa.';\r\n  end if;\r\n\r\n  select coalesce(\r\n    array_agg(\r\n      distinct requested.permission_key\r\n      order by requested.permission_key\r\n    ),\r\n    array[]::text[]\r\n  )\r\n  into v_permission_keys\r\n  from unnest(\r\n    coalesce(\r\n      p_permission_keys,\r\n      array[]::text[]\r\n    )\r\n  ) as requested(permission_key);\r\n\r\n  if exists (\r\n    select 1\r\n    from unnest(v_permission_keys)\r\n      as requested(permission_key)\r\n\r\n    left join public.permissions\r\n      as permission\r\n      on permission.key =\r\n        requested.permission_key\r\n      and permission.assignable_to_member = true\r\n\r\n    where permission.key is null\r\n  ) then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Uma ou mais permissões não podem ser atribuídas.';\r\n  end if;\r\n\r\n  update private.member_invitations\r\n  set\r\n    status = 'REVOKED',\r\n    revoked_at = now(),\r\n    updated_at = now()\r\n  where tenant_id = v_tenant_id\r\n    and lower(email) = v_email\r\n    and status = 'PENDING';\r\n\r\n  insert into private.member_invitations (\r\n    tenant_id,\r\n    email,\r\n    token_hash,\r\n    permission_keys,\r\n    invited_by,\r\n    expires_at\r\n  )\r\n  values (\r\n    v_tenant_id,\r\n    v_email,\r\n    p_token_hash,\r\n    v_permission_keys,\r\n    auth.uid(),\r\n    p_expires_at\r\n  )\r\n  returning id\r\n  into v_invitation_id;\r\n\r\n  return v_invitation_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_members_management_data",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_members_management_data()\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_members jsonb;\r\n  v_permissions jsonb;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission('members.view') then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar usuários.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  select coalesce(\r\n    jsonb_agg(\r\n      member_data.item\r\n      order by\r\n        member_data.owner_order,\r\n        member_data.created_at\r\n    ),\r\n    '[]'::jsonb\r\n  )\r\n  into v_members\r\n  from (\r\n    select\r\n      app_user.created_at,\r\n\r\n      case\r\n        when app_user.role = 'owner'\r\n          then 0\r\n        else 1\r\n      end as owner_order,\r\n\r\n      jsonb_build_object(\r\n        'id',\r\n        app_user.id,\r\n\r\n        'email',\r\n        app_user.email,\r\n\r\n        'full_name',\r\n        app_user.full_name,\r\n\r\n        'role',\r\n        app_user.role,\r\n\r\n        'active',\r\n        app_user.active,\r\n\r\n        'created_at',\r\n        app_user.created_at,\r\n\r\n        'permissions',\r\n        case\r\n          when app_user.role = 'owner'\r\n            then '[]'::jsonb\r\n          else coalesce(\r\n            (\r\n              select jsonb_agg(\r\n                user_permission.permission_key\r\n                order by\r\n                  permission.sort_order,\r\n                  permission.key\r\n              )\r\n              from private.user_permissions\r\n                as user_permission\r\n\r\n              join public.permissions\r\n                as permission\r\n                on permission.key =\r\n                  user_permission.permission_key\r\n\r\n              where user_permission.user_id =\r\n                app_user.id\r\n            ),\r\n            '[]'::jsonb\r\n          )\r\n        end\r\n      ) as item\r\n\r\n    from public.users as app_user\r\n\r\n    where app_user.tenant_id =\r\n      v_tenant_id\r\n  ) as member_data;\r\n\r\n  select coalesce(\r\n    jsonb_agg(\r\n      jsonb_build_object(\r\n        'key',\r\n        permission.key,\r\n\r\n        'module',\r\n        permission.module,\r\n\r\n        'name',\r\n        permission.name,\r\n\r\n        'description',\r\n        permission.description,\r\n\r\n        'sort_order',\r\n        permission.sort_order\r\n      )\r\n      order by\r\n        permission.module,\r\n        permission.sort_order,\r\n        permission.key\r\n    ),\r\n    '[]'::jsonb\r\n  )\r\n  into v_permissions\r\n  from public.permissions as permission\r\n  where permission.assignable_to_member = true;\r\n\r\n  return jsonb_build_object(\r\n    'current_user_id',\r\n    auth.uid(),\r\n\r\n    'members',\r\n    v_members,\r\n\r\n    'permissions',\r\n    v_permissions,\r\n\r\n    'can_manage_permissions',\r\n    private.has_permission(\r\n      'members.permissions'\r\n    ),\r\n\r\n    'can_manage_active',\r\n    private.has_permission(\r\n      'members.deactivate'\r\n    ),\r\n\r\n    'can_invite',\r\n    private.has_permission(\r\n      'members.invite'\r\n    )\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "update_member_permissions",
+      "arguments": "p_member_id uuid, p_permission_keys text[]",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_member_permissions(p_member_id uuid, p_permission_keys text[])\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_member_role text;\r\n  v_permission_keys text[];\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'members.permissions'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para administrar permissões.';\r\n  end if;\r\n\r\n  if p_member_id is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Usuário não informado.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  select app_user.role\r\n  into v_member_role\r\n  from public.users as app_user\r\n  where app_user.id = p_member_id\r\n    and app_user.tenant_id = v_tenant_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Usuário não encontrado nesta empresa.';\r\n  end if;\r\n\r\n  if v_member_role = 'owner' then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'As permissões do proprietário não podem ser alteradas.';\r\n  end if;\r\n\r\n  v_permission_keys :=\r\n    coalesce(\r\n      p_permission_keys,\r\n      array[]::text[]\r\n    );\r\n\r\n  if exists (\r\n    select 1\r\n    from unnest(v_permission_keys)\r\n      as requested_permission(key)\r\n\r\n    left join public.permissions\r\n      as permission\r\n      on permission.key =\r\n        requested_permission.key\r\n      and permission.assignable_to_member = true\r\n\r\n    where permission.key is null\r\n  ) then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Uma ou mais permissões são inválidas ou não podem ser atribuídas.';\r\n  end if;\r\n\r\n  delete from private.user_permissions\r\n  where user_id = p_member_id;\r\n\r\n  insert into private.user_permissions (\r\n    user_id,\r\n    permission_key,\r\n    granted_by\r\n  )\r\n  select distinct\r\n    p_member_id,\r\n    requested_permission.key,\r\n    auth.uid()\r\n  from unnest(v_permission_keys)\r\n    as requested_permission(key);\r\n\r\n  return jsonb_build_object(\r\n    'member_id',\r\n    p_member_id,\r\n\r\n    'permissions',\r\n    to_jsonb(v_permission_keys)\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "update_member_active",
+      "arguments": "p_member_id uuid, p_active boolean",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_member_active(p_member_id uuid, p_active boolean)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_member_role text;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'members.deactivate'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para ativar ou desativar usuários.';\r\n  end if;\r\n\r\n  if p_member_id is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Usuário não informado.';\r\n  end if;\r\n\r\n  if p_active is null then\r\n    raise exception using\r\n      errcode = '22004',\r\n      message = 'Status não informado.';\r\n  end if;\r\n\r\n  v_tenant_id := private.current_tenant_id();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário sem empresa ativa.';\r\n  end if;\r\n\r\n  select app_user.role\r\n  into v_member_role\r\n  from public.users as app_user\r\n  where app_user.id = p_member_id\r\n    and app_user.tenant_id = v_tenant_id\r\n  for update;\r\n\r\n  if not found then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Usuário não encontrado nesta empresa.';\r\n  end if;\r\n\r\n  if v_member_role = 'owner' then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'O proprietário não pode ser desativado.';\r\n  end if;\r\n\r\n  update public.users\r\n  set active = p_active\r\n  where id = p_member_id\r\n    and tenant_id = v_tenant_id;\r\n\r\n  return jsonb_build_object(\r\n    'member_id',\r\n    p_member_id,\r\n    'active',\r\n    p_active\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "list_member_invitations",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.list_member_invitations()\n RETURNS TABLE(id uuid, email text, status text, permission_keys text[], expires_at timestamp with time zone, accepted_at timestamp with time zone, revoked_at timestamp with time zone, created_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'members.invite'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para visualizar convites.';\r\n  end if;\r\n\r\n  v_tenant_id :=\r\n    private.current_tenant_id();\r\n\r\n  return query\r\n  select\r\n    invitation.id,\r\n    invitation.email,\r\n\r\n    case\r\n      when invitation.status = 'PENDING'\r\n        and invitation.expires_at <= now()\r\n      then 'EXPIRED'\r\n      else invitation.status\r\n    end,\r\n\r\n    invitation.permission_keys,\r\n    invitation.expires_at,\r\n    invitation.accepted_at,\r\n    invitation.revoked_at,\r\n    invitation.created_at\r\n\r\n  from private.member_invitations\r\n    as invitation\r\n\r\n  where invitation.tenant_id =\r\n    v_tenant_id\r\n\r\n  order by invitation.created_at desc\r\n\r\n  limit 30;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "revoke_member_invitation",
+      "arguments": "p_invitation_id uuid",
+      "definition": "CREATE OR REPLACE FUNCTION public.revoke_member_invitation(p_invitation_id uuid)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  if auth.uid() is null then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Usuário não autenticado.';\r\n  end if;\r\n\r\n  if not private.has_permission(\r\n    'members.invite'\r\n  ) then\r\n    raise exception using\r\n      errcode = '42501',\r\n      message = 'Você não possui permissão para revogar convites.';\r\n  end if;\r\n\r\n  v_tenant_id :=\r\n    private.current_tenant_id();\r\n\r\n  update private.member_invitations\r\n  set\r\n    status = 'REVOKED',\r\n    revoked_at = now(),\r\n    updated_at = now()\r\n  where id = p_invitation_id\r\n    and tenant_id = v_tenant_id\r\n    and status = 'PENDING';\r\n\r\n  if not found then\r\n    raise exception using\r\n      errcode = 'P0002',\r\n      message = 'Convite pendente não encontrado.';\r\n  end if;\r\n\r\n  return jsonb_build_object(\r\n    'id',\r\n    p_invitation_id,\r\n\r\n    'status',\r\n    'REVOKED'\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_member_invitation_public",
+      "arguments": "p_token_hash text",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_member_invitation_public(p_token_hash text)\n RETURNS TABLE(email text, company_name text, expires_at timestamp with time zone)\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\nbegin\r\n  if p_token_hash is null\r\n    or p_token_hash !~ '^[a-f0-9]{64}$'\r\n  then\r\n    return;\r\n  end if;\r\n\r\n  return query\r\n  select\r\n    invitation.email,\r\n    tenant.name,\r\n    invitation.expires_at\r\n  from private.member_invitations as invitation\r\n  join public.tenants as tenant\r\n    on tenant.id = invitation.tenant_id\r\n  where invitation.token_hash = p_token_hash\r\n    and invitation.status = 'PENDING'\r\n    and invitation.expires_at > now()\r\n  limit 1;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "create_product",
+      "arguments": "p_name text, p_sku text, p_description text, p_image_url text, p_unit text, p_cost_price numeric, p_sale_price numeric, p_min_stock integer, p_current_stock integer",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_product(p_name text, p_sku text, p_description text, p_image_url text, p_unit text, p_cost_price numeric, p_sale_price numeric, p_min_stock integer, p_current_stock integer)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_tenant_id uuid;\r\n  v_product_id uuid;\r\nBEGIN\r\n  SELECT u.tenant_id INTO v_tenant_id\r\n  FROM public.users u\r\n  WHERE u.id = auth.uid();\r\n\r\n  IF v_tenant_id IS NULL THEN\r\n    RAISE EXCEPTION 'Tenant não encontrado';\r\n  END IF;\r\n\r\n  INSERT INTO public.products (\r\n    tenant_id, name, sku, description, image_url, unit,\r\n    cost_price, sale_price, min_stock, current_stock\r\n  ) VALUES (\r\n    v_tenant_id, p_name, p_sku, p_description, p_image_url, p_unit,\r\n    p_cost_price, p_sale_price, p_min_stock, p_current_stock\r\n  )\r\n  RETURNING id INTO v_product_id;\r\n\r\n  RETURN v_product_id;\r\nEND;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "handle_new_company_user",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_new_company_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  v_signup_flow text;\r\n  v_full_name text;\r\n\r\n  v_company_name text;\r\n  v_base_slug text;\r\n  v_slug text;\r\n  v_tenant_id uuid;\r\n\r\n  v_invitation_hash text;\r\n  v_invitation private.member_invitations%rowtype;\r\nbegin\r\n  if new.email is null then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'O usuário precisa possuir um e-mail.';\r\n  end if;\r\n\r\n  v_signup_flow :=\r\n    nullif(\r\n      btrim(\r\n        new.raw_user_meta_data\r\n          ->> 'signup_flow'\r\n      ),\r\n      ''\r\n    );\r\n\r\n  v_full_name :=\r\n    nullif(\r\n      btrim(\r\n        new.raw_user_meta_data\r\n          ->> 'full_name'\r\n      ),\r\n      ''\r\n    );\r\n\r\n  if v_full_name is null\r\n    or char_length(v_full_name) < 2\r\n  then\r\n    raise exception using\r\n      errcode = '22023',\r\n      message = 'Nome do usuário inválido.';\r\n  end if;\r\n\r\n  -- ==========================================================\r\n  -- CADASTRO NORMAL: CRIA EMPRESA E PROPRIETÁRIO\r\n  -- ==========================================================\r\n\r\n  if v_signup_flow = 'create_company' then\r\n    v_company_name :=\r\n      nullif(\r\n        btrim(\r\n          new.raw_user_meta_data\r\n            ->> 'company_name'\r\n        ),\r\n        ''\r\n      );\r\n\r\n    if v_company_name is null\r\n      or char_length(v_company_name) < 2\r\n    then\r\n      raise exception using\r\n        errcode = '22023',\r\n        message = 'Nome da empresa inválido.';\r\n    end if;\r\n\r\n    v_base_slug := lower(\r\n      regexp_replace(\r\n        v_company_name,\r\n        '[^a-zA-Z0-9]+',\r\n        '-',\r\n        'g'\r\n      )\r\n    );\r\n\r\n    v_base_slug :=\r\n      trim(both '-' from v_base_slug);\r\n\r\n    if v_base_slug = '' then\r\n      v_base_slug := 'empresa';\r\n    end if;\r\n\r\n    /*\r\n     * O UUID garante que empresas com o mesmo nome\r\n     * recebam identificadores diferentes.\r\n     */\r\n    v_slug :=\r\n      left(v_base_slug, 26)\r\n      || '-'\r\n      || replace(new.id::text, '-', '');\r\n\r\n    insert into public.tenants (\r\n      name,\r\n      slug\r\n    )\r\n    values (\r\n      v_company_name,\r\n      v_slug\r\n    )\r\n    returning id\r\n    into v_tenant_id;\r\n\r\n    insert into public.users (\r\n      id,\r\n      tenant_id,\r\n      email,\r\n      full_name,\r\n      role,\r\n      active\r\n    )\r\n    values (\r\n      new.id,\r\n      v_tenant_id,\r\n      lower(new.email),\r\n      v_full_name,\r\n      'owner',\r\n      true\r\n    );\r\n\r\n    return new;\r\n  end if;\r\n\r\n\r\n  -- ==========================================================\r\n  -- CADASTRO POR CONVITE: ENTRA EM EMPRESA EXISTENTE\r\n  -- ==========================================================\r\n\r\n  if v_signup_flow = 'accept_invitation' then\r\n    v_invitation_hash :=\r\n      nullif(\r\n        btrim(\r\n          new.raw_user_meta_data\r\n            ->> 'invitation_token_hash'\r\n        ),\r\n        ''\r\n      );\r\n\r\n    if v_invitation_hash is null\r\n      or v_invitation_hash !~ '^[a-f0-9]{64}$'\r\n    then\r\n      raise exception using\r\n        errcode = '22023',\r\n        message = 'Token de convite inválido.';\r\n    end if;\r\n\r\n    select invitation.*\r\n    into v_invitation\r\n    from private.member_invitations\r\n      as invitation\r\n    where invitation.token_hash =\r\n        v_invitation_hash\r\n      and lower(invitation.email) =\r\n        lower(new.email)\r\n      and invitation.status = 'PENDING'\r\n      and invitation.expires_at > now()\r\n    for update;\r\n\r\n    if not found then\r\n      raise exception using\r\n        errcode = '42501',\r\n        message = 'Convite inválido, expirado ou já utilizado.';\r\n    end if;\r\n\r\n    if exists (\r\n      select 1\r\n      from public.users as app_user\r\n      where lower(app_user.email) =\r\n        lower(new.email)\r\n    ) then\r\n      raise exception using\r\n        errcode = '23505',\r\n        message = 'Este e-mail já pertence a uma empresa.';\r\n    end if;\r\n\r\n    insert into public.users (\r\n      id,\r\n      tenant_id,\r\n      email,\r\n      full_name,\r\n      role,\r\n      active\r\n    )\r\n    values (\r\n      new.id,\r\n      v_invitation.tenant_id,\r\n      lower(new.email),\r\n      v_full_name,\r\n      'member',\r\n      true\r\n    );\r\n\r\n    insert into private.user_permissions (\r\n      user_id,\r\n      permission_key,\r\n      granted_by\r\n    )\r\n    select distinct\r\n      new.id,\r\n      requested.permission_key,\r\n      v_invitation.invited_by\r\n    from unnest(\r\n      coalesce(\r\n        v_invitation.permission_keys,\r\n        array[]::text[]\r\n      )\r\n    ) as requested(permission_key)\r\n    join public.permissions as permission\r\n      on permission.key =\r\n        requested.permission_key\r\n      and permission.assignable_to_member =\r\n        true\r\n    on conflict (\r\n      user_id,\r\n      permission_key\r\n    ) do nothing;\r\n\r\n    update private.member_invitations\r\n    set\r\n      status = 'ACCEPTED',\r\n      accepted_by = new.id,\r\n      accepted_at = now(),\r\n      updated_at = now()\r\n    where id = v_invitation.id;\r\n\r\n    return new;\r\n  end if;\r\n\r\n\r\n  -- ==========================================================\r\n  -- FLUXO DESCONHECIDO\r\n  -- ==========================================================\r\n\r\n  raise exception using\r\n    errcode = '22023',\r\n    message = 'Fluxo de cadastro inválido.';\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": false
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_my_account_status",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_my_account_status()\n RETURNS TABLE(user_id uuid, tenant_id uuid, active boolean, role text)\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select\r\n    app_user.id,\r\n    app_user.tenant_id,\r\n    app_user.active,\r\n    app_user.role\r\n  from public.users as app_user\r\n  where app_user.id = auth.uid()\r\n  limit 1;\r\n$function$\n",
+      "execution": {
+        "anon": false,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "update_updated_at_column",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_updated_at_column()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  NEW.updated_at = NOW();\r\n  RETURN NEW;\r\nEND;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "create_tenant_with_admin",
+      "arguments": "p_name text, p_slug text, p_user_id uuid, p_email text, p_full_name text",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_tenant_with_admin(p_name text, p_slug text, p_user_id uuid, p_email text, p_full_name text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  insert into public.tenants (name, slug)\r\n  values (p_name, p_slug)\r\n  returning id into v_tenant_id;\r\n\r\n  insert into public.users (id, tenant_id, email, full_name, role)\r\n  values (p_user_id, v_tenant_id, p_email, p_full_name, 'owner')\r\n  on conflict (id) do nothing;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "execute_stock_movement",
+      "arguments": "p_product_id uuid, p_tenant_id uuid, p_type text, p_quantity integer, p_unit_cost numeric, p_notes text, p_new_stock integer",
+      "definition": "CREATE OR REPLACE FUNCTION public.execute_stock_movement(p_product_id uuid, p_tenant_id uuid, p_type text, p_quantity integer, p_unit_cost numeric, p_notes text, p_new_stock integer)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  update public.products\r\n  set current_stock = p_new_stock, updated_at = now()\r\n  where id = p_product_id and tenant_id = p_tenant_id;\r\n\r\n  insert into public.stock_movements\r\n    (tenant_id, product_id, type, quantity, unit_cost, notes)\r\n  values\r\n    (p_tenant_id, p_product_id, p_type, p_quantity, p_unit_cost, p_notes);\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "update_product",
+      "arguments": "p_product_id uuid, p_name text, p_sku text, p_description text, p_image_url text, p_unit text, p_sale_price numeric, p_min_stock integer, p_cost_price numeric",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_product(p_product_id uuid, p_name text, p_sku text, p_description text, p_image_url text, p_unit text, p_sale_price numeric, p_min_stock integer, p_cost_price numeric)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nDECLARE\r\n  v_tenant_id uuid;\r\nBEGIN\r\n  SELECT u.tenant_id INTO v_tenant_id\r\n  FROM public.users u\r\n  WHERE u.id = auth.uid();\r\n\r\n  IF v_tenant_id IS NULL THEN\r\n    RAISE EXCEPTION 'Tenant não encontrado';\r\n  END IF;\r\n\r\n  UPDATE public.products p\r\n  SET name = p_name, sku = p_sku, description = p_description,\r\n      image_url = p_image_url, unit = p_unit, sale_price = p_sale_price,\r\n      min_stock = p_min_stock, cost_price = COALESCE(p_cost_price, p.cost_price)\r\n  WHERE p.id = p_product_id AND p.tenant_id = v_tenant_id;\r\n\r\n  IF NOT FOUND THEN\r\n    RAISE EXCEPTION 'Produto não encontrado';\r\n  END IF;\r\nEND;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "update_company_settings",
+      "arguments": "p_name text, p_slug text",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_company_settings(p_name text, p_slug text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception 'Tenant não encontrado';\r\n  end if;\r\n\r\n  update public.tenants\r\n  set name = p_name, slug = p_slug\r\n  where id = v_tenant_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_dashboard_stock_summary",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_dashboard_stock_summary()\n RETURNS json\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_count integer;\r\n  v_low json;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    return json_build_object('products_count', 0, 'low_stock', '[]'::json);\r\n  end if;\r\n\r\n  select count(*) into v_count\r\n  from public.products\r\n  where tenant_id = v_tenant_id and active = true;\r\n\r\n  select coalesce(json_agg(row_to_json(s)), '[]'::json) into v_low\r\n  from (\r\n    select id, name, current_stock, min_stock\r\n    from public.products\r\n    where tenant_id = v_tenant_id\r\n      and active = true\r\n      and current_stock < min_stock\r\n    order by (min_stock - current_stock) desc\r\n    limit 10\r\n  ) s;\r\n\r\n  return json_build_object('products_count', v_count, 'low_stock', v_low);\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "create_financial_transaction",
+      "arguments": "p_type text, p_category text, p_description text, p_amount numeric, p_due_date date, p_status text, p_paid_at date, p_notes text",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_financial_transaction(p_type text, p_category text, p_description text, p_amount numeric, p_due_date date, p_status text DEFAULT 'PENDING'::text, p_paid_at date DEFAULT NULL::date, p_notes text DEFAULT NULL::text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_id uuid;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception 'Tenant não encontrado';\r\n  end if;\r\n\r\n  insert into public.transactions (\r\n    tenant_id, type, category, description, amount,\r\n    due_date, status, paid_at, notes\r\n  ) values (\r\n    v_tenant_id, p_type, p_category, p_description, p_amount,\r\n    p_due_date, p_status, p_paid_at, p_notes\r\n  )\r\n  returning id into v_id;\r\n\r\n  return v_id;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "set_financial_transaction_status",
+      "arguments": "p_transaction_id uuid, p_target_status text",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_financial_transaction_status(p_transaction_id uuid, p_target_status text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception 'Tenant não encontrado';\r\n  end if;\r\n\r\n  update public.transactions\r\n  set\r\n    status = p_target_status,\r\n    paid_at = case\r\n      when p_target_status = 'PAID' and paid_at is null then current_date\r\n      when p_target_status in ('PENDING', 'CANCELLED') then null\r\n      else paid_at\r\n    end\r\n  where id = p_transaction_id and tenant_id = v_tenant_id;\r\n\r\n  if not found then\r\n    raise exception 'Lançamento não encontrado';\r\n  end if;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "delete_financial_transaction",
+      "arguments": "p_transaction_id uuid",
+      "definition": "CREATE OR REPLACE FUNCTION public.delete_financial_transaction(p_transaction_id uuid)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    raise exception 'Tenant não encontrado';\r\n  end if;\r\n\r\n  delete from public.transactions\r\n  where id = p_transaction_id and tenant_id = v_tenant_id;\r\n\r\n  if not found then\r\n    raise exception 'Lançamento não encontrado';\r\n  end if;\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    },
+    {
+      "schema_name": "public",
+      "function_name": "get_dashboard_financial_summary",
+      "arguments": "",
+      "definition": "CREATE OR REPLACE FUNCTION public.get_dashboard_financial_summary()\n RETURNS json\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_tenant_id uuid;\r\n  v_income_received numeric;\r\n  v_expense_paid numeric;\r\n  v_income_pending numeric;\r\n  v_expense_pending numeric;\r\n  v_overdue json;\r\n  v_upcoming json;\r\nbegin\r\n  select tenant_id into v_tenant_id\r\n  from public.users\r\n  where id = auth.uid();\r\n\r\n  if v_tenant_id is null then\r\n    return json_build_object(\r\n      'income_received', 0, 'expense_paid', 0,\r\n      'income_pending', 0, 'expense_pending', 0, 'balance', 0,\r\n      'overdue', '[]'::json, 'upcoming', '[]'::json\r\n    );\r\n  end if;\r\n\r\n  select coalesce(sum(amount), 0) into v_income_received\r\n  from public.transactions\r\n  where tenant_id = v_tenant_id and type = 'INCOME' and status = 'PAID';\r\n\r\n  select coalesce(sum(amount), 0) into v_expense_paid\r\n  from public.transactions\r\n  where tenant_id = v_tenant_id and type = 'EXPENSE' and status = 'PAID';\r\n\r\n  select coalesce(sum(amount), 0) into v_income_pending\r\n  from public.transactions\r\n  where tenant_id = v_tenant_id and type = 'INCOME' and status = 'PENDING';\r\n\r\n  select coalesce(sum(amount), 0) into v_expense_pending\r\n  from public.transactions\r\n  where tenant_id = v_tenant_id and type = 'EXPENSE' and status = 'PENDING';\r\n\r\n  select coalesce(json_agg(row_to_json(o)), '[]'::json) into v_overdue\r\n  from (\r\n    select id, description, amount, due_date\r\n    from public.transactions\r\n    where tenant_id = v_tenant_id\r\n      and status = 'PENDING'\r\n      and due_date < current_date\r\n    order by due_date asc\r\n    limit 10\r\n  ) o;\r\n\r\n  select coalesce(json_agg(row_to_json(u)), '[]'::json) into v_upcoming\r\n  from (\r\n    select id, type, description, amount, due_date\r\n    from public.transactions\r\n    where tenant_id = v_tenant_id\r\n      and status = 'PENDING'\r\n      and due_date >= current_date\r\n      and due_date <= current_date + 7\r\n    order by due_date asc\r\n    limit 10\r\n  ) u;\r\n\r\n  return json_build_object(\r\n    'income_received', v_income_received,\r\n    'expense_paid',    v_expense_paid,\r\n    'income_pending',  v_income_pending,\r\n    'expense_pending', v_expense_pending,\r\n    'balance',         v_income_received - v_expense_paid,\r\n    'overdue',         v_overdue,\r\n    'upcoming',        v_upcoming\r\n  );\r\nend;\r\n$function$\n",
+      "execution": {
+        "anon": true,
+        "service_role": true,
+        "authenticated": true
+      }
+    }
+  ],
+  "columns": [
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 13,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "cost_price",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 7,
+      "numeric_precision": 12,
+      "numeric_scale": 2
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "sale_price",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 8,
+      "numeric_precision": 12,
+      "numeric_scale": 2
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "min_stock",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 9,
+      "numeric_precision": 32,
+      "numeric_scale": 0
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "current_stock",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 10,
+      "numeric_precision": 32,
+      "numeric_scale": 0
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "active",
+      "data_type": "boolean",
+      "udt_name": "bool",
+      "is_nullable": "NO",
+      "column_default": "true",
+      "ordinal_position": 11,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 12,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 13,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "product_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "quantity",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5,
+      "numeric_precision": 32,
+      "numeric_scale": 0
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "unit_cost",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 6,
+      "numeric_precision": 12,
+      "numeric_scale": 2
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 8,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 9,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "ordinal_position": 8,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": "now()",
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "invited_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "accepted_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 8,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "expires_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 9,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "accepted_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 10,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "revoked_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 11,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 12,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "active",
+      "data_type": "boolean",
+      "udt_name": "bool",
+      "is_nullable": "NO",
+      "column_default": "true",
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tenants",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tenants",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": "gen_random_uuid()",
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "amount",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6,
+      "numeric_precision": 12,
+      "numeric_scale": 2
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "due_date",
+      "data_type": "date",
+      "udt_name": "date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "paid_at",
+      "data_type": "date",
+      "udt_name": "date",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 8,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 11,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 12,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "created_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "updated_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "portal",
+      "data_type": "boolean",
+      "udt_name": "bool",
+      "is_nullable": "NO",
+      "column_default": "false",
+      "ordinal_position": 18,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "sort_order",
+      "data_type": "integer",
+      "udt_name": "int4",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 5,
+      "numeric_precision": 32,
+      "numeric_scale": 0
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "updated_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "assignable_to_member",
+      "data_type": "boolean",
+      "udt_name": "bool",
+      "is_nullable": "NO",
+      "column_default": "true",
+      "ordinal_position": 8,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "user_permissions",
+      "column_name": "user_id",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "user_permissions",
+      "column_name": "granted_by",
+      "data_type": "uuid",
+      "udt_name": "uuid",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "user_permissions",
+      "column_name": "created_at",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "NO",
+      "column_default": "now()",
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "email",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "full_name",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "role",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'member'::text",
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "contact_name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "user_permissions",
+      "column_name": "permission_key",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "email",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tenants",
+      "column_name": "name",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tenants",
+      "column_name": "slug",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "phone",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "type",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "email",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "type",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "category",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "description",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "name",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "sku",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "description",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "status",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'PENDING'::text",
+      "ordinal_position": 9,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "notes",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 10,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "unit",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'un'::text",
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "token_hash",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stock_movements",
+      "column_name": "notes",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 7,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "permission_keys",
+      "data_type": "ARRAY",
+      "udt_name": "_text",
+      "is_nullable": "NO",
+      "column_default": "ARRAY[]::text[]",
+      "ordinal_position": 5,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "transactions",
+      "column_name": "supplier",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "''::text",
+      "ordinal_position": 17,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "private",
+      "table_name": "member_invitations",
+      "column_name": "status",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": "'PENDING'::text",
+      "ordinal_position": 6,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "key",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "module",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "name",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "permissions",
+      "column_name": "description",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "destinations",
+      "column_name": "description",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "suppliers",
+      "column_name": "name",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3,
+      "numeric_precision": null,
+      "numeric_scale": null
+    },
+    {
+      "table_schema": "public",
+      "table_name": "products",
+      "column_name": "image_url",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14,
+      "numeric_precision": null,
+      "numeric_scale": null
+    }
+  ],
+  "tables": [
+    {
+      "schema_name": "public",
+      "table_name": "users",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "tenants",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "transactions",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "permissions",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "private",
+      "table_name": "user_permissions",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "products",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "stock_movements",
+      "rls_enabled": true,
+      "rls_forced": true
+    },
+    {
+      "schema_name": "public",
+      "table_name": "suppliers",
+      "rls_enabled": true,
+      "rls_forced": false
+    },
+    {
+      "schema_name": "public",
+      "table_name": "destinations",
+      "rls_enabled": true,
+      "rls_forced": false
+    },
+    {
+      "schema_name": "private",
+      "table_name": "member_invitations",
+      "rls_enabled": true,
+      "rls_forced": true
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "SELECT",
+      "qual": "(private.current_user_is_active() AND (id = private.current_tenant_id()))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "tenants",
+      "permissive": "PERMISSIVE",
+      "policyname": "tenants_select_own_active",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((id = auth.uid()) OR (private.current_user_is_active() AND (tenant_id = private.current_tenant_id()) AND private.has_permission('members.view'::text)))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "users",
+      "permissive": "PERMISSIVE",
+      "policyname": "users_select_self_or_authorized",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Authenticated users can upload product images",
+      "schemaname": "storage",
+      "with_check": "(bucket_id = 'product-images'::text)"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(bucket_id = 'product-images'::text)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Public read of product images",
+      "schemaname": "storage",
+      "with_check": null
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((bucket_id = 'product-images'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can delete their own product images",
+      "schemaname": "storage",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "suppliers",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can view suppliers of their tenant",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "public"
+      ],
+      "tablename": "suppliers",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can insert suppliers of their tenant",
+      "schemaname": "public",
+      "with_check": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "suppliers",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can update suppliers of their tenant",
+      "schemaname": "public",
+      "with_check": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "suppliers",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can delete suppliers of their tenant",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "destinations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can view destinations of their tenant",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "public"
+      ],
+      "tablename": "destinations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can insert destinations of their tenant",
+      "schemaname": "public",
+      "with_check": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))"
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "destinations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can update destinations of their tenant",
+      "schemaname": "public",
+      "with_check": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((auth.uid() IS NOT NULL) AND (tenant_id = ((auth.jwt() ->> 'tenant_id'::text))::uuid))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "destinations",
+      "permissive": "PERMISSIVE",
+      "policyname": "Users can delete destinations of their tenant",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "tenants",
+      "permissive": "PERMISSIVE",
+      "policyname": "tenants_select_own",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "(id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "tenants",
+      "permissive": "PERMISSIVE",
+      "policyname": "tenants_update_own",
+      "schemaname": "public",
+      "with_check": "(id = get_tenant_id())"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(tenant_id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "users",
+      "permissive": "PERMISSIVE",
+      "policyname": "users_select_own_tenant",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(bucket_id = 'product-images'::text)",
+      "roles": [
+        "public"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Allow public read of product-images",
+      "schemaname": "storage",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "((id = auth.uid()) AND (tenant_id = get_tenant_id()))",
+      "roles": [
+        "public"
+      ],
+      "tablename": "users",
+      "permissive": "PERMISSIVE",
+      "policyname": "users_update_self",
+      "schemaname": "public",
+      "with_check": "((id = auth.uid()) AND (tenant_id = get_tenant_id()))"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(tenant_id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "products",
+      "permissive": "PERMISSIVE",
+      "policyname": "products_all",
+      "schemaname": "public",
+      "with_check": "(tenant_id = get_tenant_id())"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(tenant_id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "stock_movements",
+      "permissive": "PERMISSIVE",
+      "policyname": "stock_movements_all",
+      "schemaname": "public",
+      "with_check": "(tenant_id = get_tenant_id())"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(tenant_id = get_tenant_id())",
+      "roles": [
+        "public"
+      ],
+      "tablename": "transactions",
+      "permissive": "PERMISSIVE",
+      "policyname": "transactions_all",
+      "schemaname": "public",
+      "with_check": "(tenant_id = get_tenant_id())"
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Allow authenticated uploads to product-images",
+      "schemaname": "storage",
+      "with_check": "(bucket_id = 'product-images'::text)"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((bucket_id = 'product-images'::text) AND ((auth.uid())::text = (storage.foldername(name))[1]))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "objects",
+      "permissive": "PERMISSIVE",
+      "policyname": "Allow owner delete of product-images",
+      "schemaname": "storage",
+      "with_check": null
+    }
+  ],
+  "triggers": [
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_company_user()",
+      "table_name": "users",
+      "schema_name": "auth",
+      "trigger_name": "on_auth_user_created"
+    },
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER permissions_set_updated_at BEFORE UPDATE ON public.permissions FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "table_name": "permissions",
+      "schema_name": "public",
+      "trigger_name": "permissions_set_updated_at"
+    },
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER update_suppliers_updated_at BEFORE UPDATE ON public.suppliers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "table_name": "suppliers",
+      "schema_name": "public",
+      "trigger_name": "update_suppliers_updated_at"
+    },
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER update_destinations_updated_at BEFORE UPDATE ON public.destinations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()",
+      "table_name": "destinations",
+      "schema_name": "public",
+      "trigger_name": "update_destinations_updated_at"
+    },
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER trg_products_updated_at BEFORE UPDATE ON public.products FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "table_name": "products",
+      "schema_name": "public",
+      "trigger_name": "trg_products_updated_at"
+    },
+    {
+      "enabled": "O",
+      "definition": "CREATE TRIGGER trg_transactions_updated_at BEFORE UPDATE ON public.transactions FOR EACH ROW EXECUTE FUNCTION set_updated_at()",
+      "table_name": "transactions",
+      "schema_name": "public",
+      "trigger_name": "trg_transactions_updated_at"
+    }
+  ]
+}

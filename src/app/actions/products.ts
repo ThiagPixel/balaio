@@ -206,46 +206,6 @@ function handlePermissionError(
   return undefined;
 }
 
-/**
- * Verifica no banco se o usuário pode visualizar e,
- * nesta primeira versão, administrar preços de custo.
- *
- * Isso impede que alguém apenas esconda o campo no frontend
- * e envie cost_price manualmente.
- */
-/* async function canManageProductCost(
-  supabase: SupabaseClient,
-): Promise<boolean> {
-  const {
-    data: allowed,
-    error,
-  } = await supabase.rpc(
-    "has_permission",
-    {
-      p_permission_key:
-        PERMISSIONS.PRODUCTS_VIEW_COST,
-    },
-  );
-
-  if (error) {
-    console.error(
-      "Erro ao verificar permissão de custo:",
-      {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-      },
-    );
-
-    throw new Error(
-      "Não foi possível validar a permissão de custo.",
-    );
-  }
-
-  return allowed === true;
-} */
-
 export async function createProduct(
   _prev: ProductState,
   formData: FormData,
@@ -269,6 +229,12 @@ export async function createProduct(
       await requirePermission(
         PERMISSIONS.PRODUCTS_CREATE,
       );
+
+    // O formulário só disponibiliza custo a quem possui esta permissão.
+    // Também validamos envios manuais; sem o campo, o custo inicial é zero.
+    if (formData.has("cost_price")) {
+      await requirePermission(PERMISSIONS.PRODUCTS_VIEW_COST);
+    }
 
     const { error } = await supabase.rpc(
       "create_product",
@@ -378,6 +344,11 @@ export async function updateProduct(
       await requirePermission(
         PERMISSIONS.PRODUCTS_UPDATE,
       );
+
+    // Campo ausente preserva o custo atual; um valor enviado exige permissão.
+    if (parsed.data.cost_price !== undefined) {
+      await requirePermission(PERMISSIONS.PRODUCTS_VIEW_COST);
+    }
 
     const { error } = await supabase.rpc(
       "update_product",

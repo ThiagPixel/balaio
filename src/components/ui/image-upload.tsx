@@ -69,9 +69,14 @@ export function ImageUpload({
       try {
         const supabase = createClient();
 
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+          throw new Error("Usuário não autenticado.");
+        }
+
         // Gera nome único para o arquivo
         const ext = file.name.split(".").pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
+        const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
 
         const { data, error: uploadError } =
           await supabase.storage

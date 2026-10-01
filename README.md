@@ -50,11 +50,12 @@ Essa lista descreve a implementação local. O funcionamento completo depende da
 | --- | --- |
 | `npm run dev` | Servidor de desenvolvimento |
 | `npm run typecheck` | Verificação de TypeScript |
+| `npm run test:security` | Testes de autorização SQL em PostgreSQL temporário |
 | `npm run lint` | ESLint com as regras `next/core-web-vitals` |
 | `npm run build` | Build de produção |
 | `npm start` | Executar o build de produção |
 
-Ainda não há suíte de testes automatizados no repositório. Typecheck e lint não validam os contratos das RPCs nem as permissões do banco em execução.
+Há uma suíte de segurança SQL em `supabase/tests`, com dados fictícios e PostgreSQL em memória. Typecheck e lint não validam os contratos das RPCs nem as permissões do banco em execução; os testes locais também não substituem a verificação no Supabase.
 
 ## Organização
 

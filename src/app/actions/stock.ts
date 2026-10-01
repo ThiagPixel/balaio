@@ -172,6 +172,10 @@ export async function createMovement(
         ),
       );
 
+    if (data.type === "IN" && data.unit_cost !== null) {
+      await requirePermission(PERMISSIONS.PRODUCTS_VIEW_COST);
+    }
+
     const { error } = await supabase.rpc(
       "execute_stock_movement",
       {

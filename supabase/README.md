@@ -1,7 +1,7 @@
 # Estado do banco de dados
 
 O histórico SQL local é parcial: há migrations `0001`, `0002`, `0003`, `0020`,
-`0021` e `0022`. Os arquivos `0004` a `0019` não estão presentes. A sequência
+`0021`, `0022` e `0023`. Os arquivos `0004` a `0019` não estão presentes. A sequência
 disponível não constitui uma instalação completa para um banco novo.
 
 ## Divergências verificadas
@@ -20,8 +20,33 @@ disponível não constitui uma instalação completa para um banco novo.
 - As políticas iniciais de `0002` não representam todo o controle de acesso
   granular exigido pelo código atual.
 
-Essas constatações descrevem arquivos locais, não as definições instaladas no
-banco remoto. Não foram criadas migrations substitutas com base em suposições.
+O inventário fornecido em 2026-10-01 confirmou funções e políticas antigas
+instaladas junto ao modelo atual de permissões. A migration `0023` corrige as
+falhas confirmadas nesse inventário; sua aplicação no Supabase ainda deve ser
+verificada. Ela não preenche o histórico ausente.
+
+## Aplicação da correção 0023
+
+1. Publique o código que envia imagens com o prefixo `user.id/`. A política nova
+   exige esse caminho nos uploads. Imagens existentes continuam com suas URLs.
+2. Confira também os outros clientes, inclusive o projeto mobile: a migration
+   remove acesso direto a `products`, `stock_movements` e `transactions` e escrita
+   direta em `users` e `tenants`. Esses acessos devem usar RPCs autorizadas.
+   A assinatura antiga de estoque com tenant e saldo final é bloqueada.
+3. Execute `migrations/0023_security_hardening.sql` no SQL Editor do ambiente
+   conferido. O script usa uma transação e falha se helpers necessários faltarem.
+4. Execute `diagnostics/verify_security_hardening.sql`: todas as linhas devem
+   mostrar `passed = true`. Depois confira login, cadastro, convites, produtos,
+   estoque, financeiro e imagens com usuários de permissões diferentes.
+
+As RPCs de produtos passam a ocultar custo sem `products.view_cost`, e as mutations
+exigem permissões no banco. Conta desativada não recebe tenant ativo. Membros não
+podem conceder permissões que não possuem. Novas funções públicas criadas pelo
+papel `postgres` exigem `GRANT EXECUTE` explícito; a consulta pública de convite
+continua disponível para `anon`. O bucket de imagens mantém sua leitura pública.
+
+Não reexecute migrations antigas depois de `0023`: elas reintroduzem funções e
+políticas vulneráveis. Correções futuras devem usar migrations incrementais.
 
 ## Conferir o ambiente existente
 
