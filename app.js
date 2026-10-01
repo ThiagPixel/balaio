@@ -25,6 +25,7 @@ const toast = document.getElementById('toast');
 
 let currentProduct = null;
 let allProducts = [];
+let withdrawalPending = false;
 
 // =====================
 // Utilitários
@@ -53,12 +54,23 @@ function escapeHtml(text) {
 // =====================
 async function checkSession() {
   const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
-    showView(appView);
-    loadProducts();
-  } else {
+  if (!session) {
     showView(loginView);
+    return;
   }
+
+  const { data: access, error } = await supabase.rpc('get_my_access_context');
+  if (error || !access || access.active !== true || !access.permissions.includes('stock.out')) {
+    allProducts = [];
+    renderProducts(allProducts);
+    await supabase.auth.signOut();
+    showView(loginView);
+    showToast('Sua conta está inativa ou não possui permissão para retirar produtos.', 'error');
+    return;
+  }
+
+  showView(appView);
+  await loadProducts();
 }
 
 loginForm.addEventListener('submit', async (e) => {
@@ -71,8 +83,7 @@ loginForm.addEventListener('submit', async (e) => {
   if (error) {
     showToast(error.message, 'error');
   } else {
-    showView(appView);
-    loadProducts();
+    await checkSession();
   }
 });
 
@@ -118,19 +129,36 @@ async function loadProducts() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return;
 
-  const { data, error } = await supabase
-    .from('products')
-    .select('id, name, sku, current_stock, min_stock')
-    .eq('active', true)
-    .order('name');
+  let { data, error } = await supabase.rpc('list_withdrawal_products');
+
+  // Compatibilidade durante a publicação: só usa a leitura antiga se a RPC ainda
+  // não existir. Erros de permissão nunca acionam esse fallback.
+  if (error && error.code === 'PGRST202') {
+    ({ data, error } = await supabase
+      .from('products')
+      .select('id, name, sku, current_stock, min_stock')
+      .eq('active', true)
+      .order('name'));
+  }
 
   if (error) {
+    allProducts = [];
+    renderProducts(allProducts);
     showToast('Erro ao carregar produtos', 'error');
     return;
   }
 
   allProducts = data || [];
-  renderProducts(allProducts);
+  renderProducts(filterProducts(searchInput.value));
+}
+
+function normalizeSearch(value) {
+  return (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function filterProducts(query) {
+  const term = normalizeSearch(query).trim();
+  return allProducts.filter(p => normalizeSearch(p.name).includes(term) || normalizeSearch(p.sku).includes(term));
 }
 
 function renderProducts(products) {
@@ -159,12 +187,7 @@ function renderProducts(products) {
 }
 
 searchInput.addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase();
-  const filtered = allProducts.filter(p =>
-    p.name.toLowerCase().includes(query) ||
-    (p.sku && p.sku.toLowerCase().includes(query))
-  );
-  renderProducts(filtered);
+  renderProducts(filterProducts(e.target.value));
 });
 
 // =====================
@@ -196,49 +219,43 @@ baixaModal.addEventListener('click', (e) => {
 
 baixaForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!currentProduct) return;
+  if (!currentProduct || withdrawalPending) return;
 
-  const quantity = parseInt(document.getElementById('baixaQuantity').value);
+  const product = currentProduct;
+  const quantity = Number(document.getElementById('baixaQuantity').value);
   const notes = document.getElementById('baixaNotes').value;
-
-  if (quantity > currentProduct.current_stock) {
-    showToast('Quantidade maior que o estoque disponível', 'error');
+  if (!Number.isInteger(quantity) || quantity <= 0 || quantity > product.current_stock) {
+    showToast('Informe uma quantidade inteira maior que zero e dentro do estoque disponível.', 'error');
     return;
   }
 
-  const newStock = currentProduct.current_stock - quantity;
+  withdrawalPending = true;
+  const submitButton = baixaForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Entre novamente para registrar a retirada.');
 
-  const { data: { session } } = await supabase.auth.getSession();
-  const userId = session.user.id;
+    // O banco resolve a empresa, valida a permissão e calcula o estoque final.
+    const { error } = await supabase.rpc('execute_stock_movement', {
+      p_product_id: product.id,
+      p_type: 'OUT',
+      p_quantity: quantity,
+      p_unit_cost: null,
+      p_notes: notes.trim() || 'Baixa de estoque'
+    });
+    if (error) throw error;
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('tenant_id')
-    .eq('id', userId)
-    .single();
-
-  if (!userData) {
-    showToast('Erro ao identificar empresa', 'error');
-    return;
-  }
-
-  const { error } = await supabase.rpc('execute_stock_movement', {
-    p_product_id: currentProduct.id,
-    p_tenant_id: userData.tenant_id,
-    p_type: 'OUT',
-    p_quantity: quantity,
-    p_unit_cost: null,
-    p_notes: notes || 'Baixa de estoque',
-    p_new_stock: newStock
-  });
-
-  if (error) {
-    console.error('Erro baixa:', error);
-    showToast('Erro ao dar baixa', 'error');
-  } else {
-    showToast(`Baixa de ${quantity} unidades realizada!`);
+    showToast('Baixa de ' + quantity + ' unidades realizada!');
     baixaModal.classList.remove('active');
-    loadProducts();
+    currentProduct = null;
+    await loadProducts();
+  } catch (error) {
+    console.error('Erro baixa:', error);
+    showToast(error.message || 'Erro ao dar baixa', 'error');
+  } finally {
+    withdrawalPending = false;
+    submitButton.disabled = false;
   }
 });
 
