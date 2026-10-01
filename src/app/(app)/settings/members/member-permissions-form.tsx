@@ -65,13 +65,13 @@ export function MemberPermissionsForm({
   const groupedPermissions =
     permissions.reduce<Record<string, PermissionItem[]>>(
       (groups, permission) => {
-        const module = permission.module || "other";
+        const moduleKey = permission.module || "other";
 
-        if (!groups[module]) {
-          groups[module] = [];
+        if (!groups[moduleKey]) {
+          groups[moduleKey] = [];
         }
 
-        groups[module].push(permission);
+        groups[moduleKey].push(permission);
 
         return groups;
       },

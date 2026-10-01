@@ -63,15 +63,15 @@ export function InviteMemberForm({
         PermissionItem[]
       >
     >((groups, permission) => {
-      const module =
+      const moduleKey =
         permission.module ||
         "other";
 
-      if (!groups[module]) {
-        groups[module] = [];
+      if (!groups[moduleKey]) {
+        groups[moduleKey] = [];
       }
 
-      groups[module].push(
+      groups[moduleKey].push(
         permission,
       );
 

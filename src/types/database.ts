@@ -1,9 +1,9 @@
 // =====================================================
 // Balaio - Tipos do banco Supabase
 // =====================================================
-// Você pode regenerar esses tipos rodando:
-//   npx supabase gen types typescript --project-id <id> > src/types/database.ts
-// Por enquanto, mantemos manualmente para simplicidade.
+// Interfaces de domínio mantidas manualmente; não são o schema gerado pelo CLI.
+// Tipos gerados do banco devem ficar em outro arquivo e ser integrados aos
+// clientes Supabase antes de substituir estas interfaces.
 // =====================================================
 
 export type Json =
@@ -42,6 +42,7 @@ export interface Product {
   name: string;
   sku: string | null;
   description: string | null;
+  image_url: string | null;
   unit: string;
   cost_price: number;
   sale_price: number;

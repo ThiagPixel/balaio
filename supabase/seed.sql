@@ -2,15 +2,14 @@
 -- Balaio - Seed de dados de exemplo
 -- =====================================================
 -- Use APENAS em ambiente de desenvolvimento/testes.
--- Cria um tenant de exemplo com produtos e lançamentos.
+-- Insere produtos e lançamentos em um tenant já existente.
 -- ATENÇÃO: este seed NÃO cria usuários de auth — você
 -- precisa ter se cadastrado no app pelo menos uma vez
 -- para que seu user esteja em public.users.
 -- =====================================================
 
--- Você precisa substituir 'YOUR_TENANT_ID' pelo id do
--- tenant do seu usuário (após o primeiro signup).
--- Busque em Authentication > Users ou:
+-- O script seleciona o primeiro usuário cadastrado abaixo.
+-- Confira o tenant de destino antes de executar:
 --   select id, tenant_id, email from public.users;
 
 do $$

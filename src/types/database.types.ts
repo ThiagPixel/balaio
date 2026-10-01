@@ -1,3 +1,3 @@
-// Re-exporta os tipos do banco para manter compatibilidade
-// com o padrão gerado pelo Supabase CLI (`database.types.ts`).
+// Alias para as interfaces manuais de domínio. Este arquivo não foi gerado
+// pelo Supabase CLI e não fornece o tipo Database do schema completo.
 export * from "./database";
