@@ -1,5 +1,35 @@
 # Estado do banco de dados
 
+## Ordens de serviço locais (0027 — ainda não aplicada)
+
+`migrations/0027_service_orders.sql` é uma proposta **local**, ainda não
+executada no Supabase. Cria OS, etapas atribuídas, dependência da etapa anterior,
+pendências e eventos; adiciona
+`os.view`, `os.create`, `os.manage`, `os.execute`, `os.resolve` e `os.complete`.
+Somente o responsável principal pode concluir uma OS, após todas as etapas e
+pendências estarem resolvidas. Tabelas têm RLS forçada e nenhum acesso direto
+do cliente; as RPCs verificam permissão e empresa. `npm run test:security`
+executa a migration e as transições em PostgreSQL em memória, preservando os
+testes dos módulos antigos.
+
+Este é o primeiro incremento: **não** inclui ainda modelos configuráveis,
+dependências arbitrárias entre etapas, transferência do principal, cancelamento,
+reabertura ou vínculo de material consumido com estoque. `location_label` é texto
+de referência, não um identificador estruturado para relatório por bloco.
+Antes de publicar a aplicação, aplicar e verificar a migration no ambiente
+correto: contas proprietárias passam a receber `os.view` pelo modelo atual e o
+dashboard novo chama `get_service_order_dashboard`. Publicar o código antes
+da migration faria o dashboard falhar para essas contas. Não aplicar em produção
+sem revisão e autorização da equipe.
+Após aplicação autorizada, executar `diagnostics/verify_service_orders.sql`;
+todas as linhas precisam retornar `passed = true` antes de publicar o código.
+
+`migrations/0028_service_order_priority.sql` atualiza apenas as duas RPCs de
+listagem/resumo criadas em 0027. Ela inclui OS concluídas no resumo, prioriza
+pendências de material/compra e preserva as OS já registradas. Aplicar após
+0027 e antes da interface que espera `id`, motivo e tipo de pendência no cartão
+do dashboard. Não substituir a 0027 já executada por uma versão editada.
+
 ## Empréstimos de exemplares (0025)
 
 `migrations/0025_item_loans.sql` cria exemplares devolvíveis e histórico de

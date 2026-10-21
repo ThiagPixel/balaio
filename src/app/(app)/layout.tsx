@@ -83,6 +83,10 @@ export default async function AppLayout({
     navigation.push({ name: "Empréstimos", href: "/loans", icon: "🔑" });
   }
 
+  if (can(access, PERMISSIONS.OS_VIEW)) {
+    navigation.push({ name: "Ordens de serviço", href: "/service-orders", icon: "🛠" });
+  }
+
   if (
     can(
       access,

@@ -8,6 +8,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { brazilToday, type LoanDashboard } from "@/lib/loans";
 import { LoanDashboardCard } from "./loan-dashboard-card";
+import { ServiceOrderDashboardCard } from "./service-order-dashboard-card";
+import type { ServiceOrderDashboard } from "@/lib/service-orders";
 import {
   formatCurrency,
   formatDate,
@@ -86,6 +88,7 @@ export default async function DashboardPage() {
 
   const canViewLoans = can(access, PERMISSIONS.LOANS_VIEW);
   const canLend = can(access, PERMISSIONS.LOANS_LEND);
+  const canViewServiceOrders = can(access, PERMISSIONS.OS_VIEW);
 
   const supabase = await createClient();
 
@@ -96,6 +99,7 @@ export default async function DashboardPage() {
     | DashboardFinancialData
     | null = null;
   let loanData: LoanDashboard | null = null;
+  let serviceOrderData: ServiceOrderDashboard | null = null;
 
   if (canViewStock) {
     const { data, error } =
@@ -153,6 +157,12 @@ export default async function DashboardPage() {
     const { data, error } = await supabase.rpc("get_item_loan_dashboard");
     if (error) throw new Error("Não foi possível carregar os empréstimos. Verifique a migration 0025.");
     loanData = data as LoanDashboard;
+  }
+
+  if (canViewServiceOrders) {
+    const { data, error } = await supabase.rpc("get_service_order_dashboard");
+    if (error) throw new Error("Não foi possível carregar os indicadores de OS. Verifique a migration 0027.");
+    serviceOrderData = data as ServiceOrderDashboard;
   }
 
   const hasIndicators =
@@ -451,6 +461,7 @@ export default async function DashboardPage() {
         )}
 
         {loanData && <LoanDashboardCard data={loanData} canLend={canLend} today={brazilToday()} />}
+        {serviceOrderData && <ServiceOrderDashboardCard data={serviceOrderData} canCreate={can(access, PERMISSIONS.OS_CREATE)} />}
 
         {/* Estoque baixo */}
         {stockData && (

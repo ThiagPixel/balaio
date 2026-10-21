@@ -8,6 +8,8 @@ const migration = await readFile(new URL('../migrations/0023_security_hardening.
 const reportsMigration = await readFile(new URL('../migrations/0024_management_reports.sql', import.meta.url), 'utf8');
 const reportStockMigration = await readFile(new URL('../migrations/0026_report_current_stock.sql', import.meta.url), 'utf8');
 const loansMigration = await readFile(new URL('../migrations/0025_item_loans.sql', import.meta.url), 'utf8');
+const serviceOrdersMigration = await readFile(new URL('../migrations/0027_service_orders.sql', import.meta.url), 'utf8');
+const serviceOrderPriorityMigration = await readFile(new URL('../migrations/0028_service_order_priority.sql', import.meta.url), 'utf8');
 const ids = {
   tenantA: '10000000-0000-4000-8000-000000000001', tenantB: '10000000-0000-4000-8000-000000000002',
   owner: '20000000-0000-4000-8000-000000000001', member: '20000000-0000-4000-8000-000000000002',
@@ -331,6 +333,130 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       assert.equal((await rows("select count(*) from public.list_item_loans('RETURNED')"))[0].count, 2);
       assert.equal((await rows('select available from public.list_loan_items() where id = ' + literal(itemA)))[0].available, true);
       await db.exec(`select public.start_item_loan('${itemA}', 'Nova pessoa', current_date + 1);`);
+    });
+    await t.test('estoque preserva entradas, retiradas, ajustes e permissões existentes', async () => {
+      await as('postgres');
+      await db.exec(`delete from private.user_permissions where user_id = '${ids.member}';
+        insert into private.user_permissions (user_id, permission_key) values
+          ('${ids.member}', 'stock.view'), ('${ids.member}', 'stock.in');`);
+      const initial = Number((await rows(`select current_stock from public.products where id = '${ids.productA}'`))[0].current_stock);
+      const beforeCount = Number((await rows(`select count(*) from public.stock_movements where product_id = '${ids.productA}'`))[0].count);
+      const movement = (type, quantity, cost = 'null') =>
+        `select public.execute_stock_movement('${ids.productA}', '${type}', ${quantity}, ${cost}, 'Regressão') as result;`;
+
+      // Uma sessão autenticada representa o mesmo JWT antigo: a autorização é
+      // consultada no banco a cada RPC, sem exigir uma claim nova no token.
+      await as('authenticated', ids.member);
+      await denied(movement('OUT', 1));
+      await denied(movement('ADJUST', 1));
+      await denied(movement('IN', 1, '12.5'));
+      const entry = (await rows(movement('IN', 4)))[0].result;
+      assert.equal(Number(entry.old_stock), initial);
+      assert.equal(Number(entry.new_stock), initial + 4);
+      assert.equal(entry.created_by, ids.member);
+      assert.equal(Number((await rows(`select current_stock from public.list_stock_products() where id = '${ids.productA}'`))[0].current_stock), initial + 4);
+      const visibleEntry = (await rows(`select * from public.list_stock_movements(500) where id = '${entry.movement_id}'`))[0];
+      assert.equal(visibleEntry.movement_type, 'IN');
+      assert.equal(visibleEntry.quantity, 4);
+      assert.equal(visibleEntry.unit_cost, null);
+      await denied(movement('IN', 0), '22023');
+      await denied(movement('IN', -1), '22023');
+      await denied(movement('OUT', 1), '42501');
+      await denied(`select public.execute_stock_movement('${ids.productB}', 'IN', 1, null, null);`, 'P0002');
+
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions (user_id, permission_key) values ('${ids.member}', 'stock.out');`);
+      await as('authenticated', ids.member);
+      await denied(movement('OUT', initial + 5), '22023');
+      const withdrawal = (await rows(movement('OUT', 3)))[0].result;
+      assert.equal(Number(withdrawal.new_stock), initial + 1);
+      await denied(movement('ADJUST', 0));
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions (user_id, permission_key) values ('${ids.member}', 'stock.adjust');`);
+      await as('authenticated', ids.member);
+      const adjustment = (await rows(movement('ADJUST', 7)))[0].result;
+      assert.equal(Number(adjustment.old_stock), initial + 1);
+      assert.equal(Number(adjustment.new_stock), 7);
+      assert.equal((await rows(`select * from public.list_stock_movements(500) where id = '${withdrawal.movement_id}'`))[0].movement_type, 'OUT');
+      assert.equal((await rows(`select * from public.list_stock_movements(500) where id = '${adjustment.movement_id}'`))[0].movement_type, 'ADJUST');
+
+      await as('postgres');
+      assert.equal(Number((await rows(`select current_stock from public.products where id = '${ids.productA}'`))[0].current_stock), 7);
+      assert.equal(Number((await rows(`select count(*) from public.stock_movements where product_id = '${ids.productA}'`))[0].count), beforeCount + 3);
+      await db.exec(`delete from private.user_permissions where user_id = '${ids.member}';`);
+      await as('authenticated', ids.member);
+      await denied('select * from public.list_stock_movements(100);');
+      await denied('select * from public.list_stock_products();');
+      await denied(movement('IN', 1));
+      await as('authenticated', ids.inactive);
+      await denied(movement('IN', 1));
+    });
+    await t.test('OS isola empresas, restringe execução e exige principal sem pendências', async () => {
+      await as('postgres');
+      await db.exec(serviceOrdersMigration);
+      await db.exec(serviceOrderPriorityMigration);
+      await db.exec(serviceOrderPriorityMigration);
+      const create = (principal, assignee) => `select public.create_service_order('Instalar câmera', 'Teste', 'Bloco 2',
+        'NORMAL', current_date + 7, '${principal}',
+        '[{"title":"Instalar tomada","assignee_id":"${assignee}"},{"title":"Testar câmera","assignee_id":"${principal}","depends_on_previous":true}]'::jsonb) as id;`;
+      await as('anon');
+      await denied('select public.list_service_orders();');
+      await as('authenticated', ids.member);
+      await denied(create(ids.owner, ids.member));
+      await as('authenticated', ids.owner);
+      await denied(create(ids.ownerB, ids.member), '22023');
+      await denied(`select public.create_service_order('Instalar câmera', null, null,
+        'NORMAL', (now() at time zone 'America/Sao_Paulo')::date - 1,
+        '${ids.owner}', '[{"title":"Testar câmera","assignee_id":"${ids.owner}"}]'::jsonb);`, '22023');
+      const orderId = (await rows(create(ids.owner, ids.member)))[0].id;
+      const detail = (await rows(`select public.get_service_order('${orderId}') as data`))[0].data;
+      assert.equal(detail.steps.length, 2);
+      const memberStep = detail.steps.find((step) => step.assignee_id === ids.member);
+      const ownerStep = detail.steps.find((step) => step.assignee_id === ids.owner);
+      assert.equal(ownerStep.depends_on_title, 'Instalar tomada');
+      assert.equal(ownerStep.depends_on_completed, false);
+      await denied(`select public.complete_service_order('${orderId}');`, '22023');
+      await db.exec(`select public.start_service_order('${orderId}');`);
+      await denied(`select public.complete_service_order_step('${ownerStep.id}');`, '22023');
+      const blocker = (await rows(`select public.add_service_order_blocker('${orderId}', 'EXTERNAL', 'Instalar tomada', 'Almo') as id`))[0].id;
+      await denied(`select public.complete_service_order('${orderId}');`, '22023');
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions(user_id,permission_key) values
+        ('${ids.member}','os.view'),('${ids.member}','os.execute'),('${ids.member}','os.complete');`);
+      await as('authenticated', ids.member);
+      assert.equal((await rows(`select public.get_service_order('${orderId}') as data`))[0].data.status, 'WAITING');
+      await denied(`select public.complete_service_order_step('${ownerStep.id}');`);
+      await db.exec(`select public.complete_service_order_step('${memberStep.id}', 'Tomada instalada');`);
+      await denied(`select public.complete_service_order('${orderId}');`);
+      await denied(`select public.resolve_service_order_blocker('${blocker}');`);
+      await as('authenticated', ids.ownerB);
+      assert.equal((await rows('select public.list_service_orders() as data'))[0].data.length, 0);
+      assert.equal((await rows(`select public.get_service_order('${orderId}') as data`))[0].data, null);
+      await denied(`select public.start_service_order('${orderId}');`, 'P0002');
+      await as('authenticated', ids.owner);
+      await db.exec(`select public.resolve_service_order_blocker('${blocker}', 'Conferido');`);
+      assert.equal((await rows(`select public.get_service_order('${orderId}') as data`))[0].data.status, 'IN_PROGRESS');
+      await denied(`select public.complete_service_order('${orderId}');`, '22023');
+      await db.exec(`select public.complete_service_order_step('${ownerStep.id}', 'Câmera testada');`);
+      await db.exec(`select public.complete_service_order('${orderId}');`);
+      assert.equal((await rows(`select public.get_service_order('${orderId}') as data`))[0].data.status, 'COMPLETED');
+      assert.equal(Number((await rows('select public.get_service_order_dashboard() as data'))[0].data.completed), 1);
+      const openId = (await rows(create(ids.owner, ids.owner)))[0].id;
+      const progressId = (await rows(create(ids.owner, ids.owner)))[0].id;
+      const waitingId = (await rows(create(ids.owner, ids.owner)))[0].id;
+      await db.exec(`select public.start_service_order('${progressId}');`);
+      await db.exec(`select public.start_service_order('${waitingId}');`);
+      await db.exec(`select public.add_service_order_blocker('${waitingId}', 'MATERIAL', 'Comprar tomada', 'Compras');`);
+      const priorities = (await rows('select public.get_service_order_dashboard() as data'))[0].data.urgent;
+      assert.deepEqual(priorities.map((order) => order.id), [waitingId, progressId, openId, orderId]);
+      assert.equal(priorities[0].waiting_for, 'Comprar tomada');
+      const orderedList = (await rows('select public.list_service_orders() as data'))[0].data;
+      assert.deepEqual(orderedList.map((order) => order.id), [waitingId, progressId, openId, orderId]);
+      await denied(`select public.complete_service_order('${orderId}');`, '22023');
+      await denied(`select * from public.service_orders;`);
+      await as('postgres');
+      const osVerification = await readFile(new URL('../diagnostics/verify_service_orders.sql', import.meta.url), 'utf8');
+      for (const result of await rows(osVerification)) assert.equal(result.passed, true, result.check_name);
     });
     t.diagnostic(`${checks} tentativas indevidas rejeitadas; falhas reproduzidas antes e bloqueadas depois.`);
   } finally {

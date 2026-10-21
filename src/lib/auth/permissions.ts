@@ -30,6 +30,13 @@ export const PERMISSIONS = {
   LOANS_LEND: "loans.lend",
   LOANS_RETURN: "loans.return",
 
+  OS_VIEW: "os.view",
+  OS_CREATE: "os.create",
+  OS_MANAGE: "os.manage",
+  OS_EXECUTE: "os.execute",
+  OS_RESOLVE: "os.resolve",
+  OS_COMPLETE: "os.complete",
+
   FINANCE_VIEW: "finance.view",
   FINANCE_CREATE: "finance.create",
   FINANCE_SETTLE: "finance.settle",
