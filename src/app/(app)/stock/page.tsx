@@ -120,6 +120,8 @@ export default async function StockPage() {
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+        <Link href="/reports" className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">Ver relatórios</Link>
         {canCreateMovement && (
           <Link
             href="/stock/new"
@@ -128,6 +130,7 @@ export default async function StockPage() {
             + Nova movimentação
           </Link>
         )}
+        </div>
       </div>
 
       {movements.length === 0 ? (

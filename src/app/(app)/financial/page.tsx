@@ -224,6 +224,8 @@ export default async function FinancialPage({
           </p>
         </div>
 
+        <div className="flex flex-wrap gap-2">
+        <Link href="/reports" className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50">Ver relatórios</Link>
         {canCreate && (
           <Link
             href="/financial/new"
@@ -232,6 +234,7 @@ export default async function FinancialPage({
             + Novo lançamento
           </Link>
         )}
+        </div>
       </div>
 
       {/* Resumo */}

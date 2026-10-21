@@ -2,6 +2,18 @@
 
 Sistema web de gestão de estoque e financeiro por empresa, com usuários, permissões por operação e interface em português.
 
+## Evolução para Silune
+
+O Silune segue em [repositório independente](https://github.com/ThiagPixel/silune).
+Consulte a [nota de transferência do planejamento](docs/SILUNE_SETUP.md) para
+localizar o plano técnico e o mapa das funcionalidades de origem. O Balaio permanece
+como referência do legado; os dois projetos não compartilham automaticamente código ou dados.
+
+As propostas para relatórios, empréstimos de materiais e ordens de serviço no
+Balaio em uso estão em [Evolução para condomínios](docs/CONDOMINIO_EVOLUCAO.md).
+O primeiro relatório de estoque e financeiro está em `/reports`; ele exige a
+[migration 0024](supabase/README.md) no banco correspondente.
+
 ## Stack
 
 - Next.js 14.2.15 (App Router), React 18 e TypeScript em modo estrito.

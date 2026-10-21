@@ -1,5 +1,28 @@
 # Estado do banco de dados
 
+## Relatórios de gestão (0024)
+
+`migrations/0024_management_reports.sql` acrescenta três RPCs de leitura:
+`list_report_products`, `get_stock_report` e `get_financial_report`. Execute após
+`0023`, primeiro em ambiente de teste e depois no projeto conferido, somente
+após publicar a aplicação compatível. O script cria índices e não modifica dados
+existentes. Reexecutá-lo mantém as funções e privilégios esperados.
+
+As RPCs exigem, respectivamente, `stock.view`, `stock.view` e `finance.view`;
+sempre filtram pela empresa ativa. A consulta financeira usa lançamentos com
+status `PAID` e `paid_at` no período. A consulta de estoque usa data de
+movimentação no fuso de São Paulo. `ADJUST` é novo saldo absoluto, então o
+relatório conta ajustes, sem somar sua quantidade como perda ou consumo.
+
+O primeiro relatório não calcula custo de consumo ou gasto por bloco: os dados
+históricos não têm destino vinculado nem custo de saída confiável. Não atribua
+blocos ou perdas a partir de observações livres. Os testes locais incluem
+isolamento entre empresas, rejeição de usuários sem permissão e períodos inválidos.
+
+Após aplicar, confira `/reports` com contas que possuam só `stock.view`, só
+`finance.view` e ambas; compare os totais de um período pequeno com os registros
+originais. Uma conta sem essas permissões não deve acessar o relatório.
+
 O histórico SQL local é parcial: há migrations `0001`, `0002`, `0003`, `0020`,
 `0021`, `0022` e `0023`. Os arquivos `0004` a `0019` não estão presentes. A sequência
 disponível não constitui uma instalação completa para um banco novo.

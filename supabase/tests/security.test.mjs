@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 
 const fixture = JSON.parse((await readFile(new URL('./fixtures/security-schema-before.json', import.meta.url), 'utf8')).replace(/^\uFEFF/, ''));
 const migration = await readFile(new URL('../migrations/0023_security_hardening.sql', import.meta.url), 'utf8');
+const reportsMigration = await readFile(new URL('../migrations/0024_management_reports.sql', import.meta.url), 'utf8');
 const ids = {
   tenantA: '10000000-0000-4000-8000-000000000001', tenantB: '10000000-0000-4000-8000-000000000002',
   owner: '20000000-0000-4000-8000-000000000001', member: '20000000-0000-4000-8000-000000000002',
@@ -220,6 +221,63 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       assert.ok(products.every((p) => !('cost_price' in p) && p.id !== ids.productB));
       await denied("select * from public.list_products('');");
       await db.exec(`select public.execute_stock_movement('${ids.productA}', 'OUT', 1, null, 'Mobile');`);
+    });
+    await t.test('relatórios usam período completo e respeitam empresa e permissão', async () => {
+      await as('postgres');
+      await db.exec(reportsMigration);
+      await db.exec(reportsMigration);
+      await db.exec(`delete from public.stock_movements;
+        delete from public.transactions;
+        insert into public.stock_movements (tenant_id, product_id, type, quantity, created_at) values
+          ('${ids.tenantA}', '${ids.productA}', 'IN', 5, now()),
+          ('${ids.tenantA}', '${ids.productA}', 'OUT', 3, now()),
+          ('${ids.tenantA}', '${ids.productA}', 'ADJUST', 10, now()),
+          ('${ids.tenantB}', '${ids.productB}', 'OUT', 99, now());
+        insert into public.transactions (tenant_id, type, category, description, amount, due_date, paid_at, status) values
+          ('${ids.tenantA}', 'INCOME', 'Serviço', 'Recebido', 100, current_date, current_date, 'PAID'),
+          ('${ids.tenantA}', 'EXPENSE', 'Serviço', 'Pago', 40, current_date, current_date, 'PAID'),
+          ('${ids.tenantB}', 'EXPENSE', 'Outro', 'Outro tenant', 999, current_date, current_date, 'PAID');`);
+      await as('anon');
+      await denied('select public.get_stock_report(current_date, current_date, null);');
+      await denied('select public.get_financial_report(current_date, current_date);');
+      await as('authenticated', ids.member);
+      await denied('select public.get_stock_report(current_date, current_date, null);');
+      await denied('select public.get_financial_report(current_date, current_date);');
+      await as('authenticated', ids.inactive);
+      await denied('select public.get_stock_report(current_date, current_date, null);');
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions (user_id, permission_key)
+        values ('${ids.member}', 'stock.view');`);
+      await as('authenticated', ids.member);
+      assert.equal(Number((await rows('select public.get_stock_report(current_date, current_date, null) as report'))[0].report.records), 3);
+      assert.ok((await rows('select count(*) from public.list_report_products()'))[0].count > 0);
+      await denied('select public.get_financial_report(current_date, current_date);');
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions (user_id, permission_key)
+        values ('${ids.member}', 'finance.view');`);
+      await as('authenticated', ids.member);
+      assert.equal(Number((await rows('select public.get_financial_report(current_date, current_date) as report'))[0].report.paid), 40);
+      await as('authenticated', ids.owner);
+      const stock = (await rows(`select public.get_stock_report(current_date, current_date, '${ids.productA}') as report`))[0].report;
+      assert.equal(Number(stock.incoming), 5);
+      assert.equal(Number(stock.outgoing), 3);
+      assert.equal(Number(stock.adjustments), 1);
+      assert.equal(Number(stock.records), 3);
+      assert.equal(stock.products.length, 1);
+      const onlyOut = (await rows(`select public.get_stock_report(current_date, current_date, '${ids.productA}', 'OUT') as report`))[0].report;
+      assert.equal(Number(onlyOut.outgoing), 3);
+      assert.equal(Number(onlyOut.records), 1);
+      const financial = (await rows('select public.get_financial_report(current_date, current_date) as report'))[0].report;
+      assert.equal(Number(financial.received), 100);
+      assert.equal(Number(financial.paid), 40);
+      assert.equal(Number(financial.balance), 60);
+      assert.equal(financial.categories.length, 2);
+      const reportProducts = await rows('select id from public.list_report_products()');
+      assert.ok(reportProducts.some((product) => product.id === ids.productA));
+      assert.ok(reportProducts.every((product) => product.id !== ids.productB));
+      await denied(`select public.get_stock_report(current_date, current_date, '${ids.productB}');`, '22023');
+      await denied(`select public.get_stock_report(current_date, current_date, null, 'INVALID');`, '22023');
+      await denied('select public.get_stock_report(current_date, current_date - 1, null);', '22023');
     });
     t.diagnostic(`${checks} tentativas indevidas rejeitadas; falhas reproduzidas antes e bloqueadas depois.`);
   } finally {
