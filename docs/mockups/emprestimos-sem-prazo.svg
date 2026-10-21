@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="650" viewBox="0 0 1120 650">
+  <rect width="1120" height="650" fill="#f8fafc"/>
+  <rect x="0" y="0" width="210" height="650" fill="#fff" stroke="#e2e8f0"/>
+  <text x="24" y="38" font-family="Arial" font-size="18" font-weight="bold" fill="#0f172a">Balaio</text>
+  <text x="24" y="100" font-family="Arial" font-size="14" fill="#475569">📊 Dashboard</text>
+  <text x="24" y="140" font-family="Arial" font-size="14" fill="#2563eb">🔑 Empréstimos</text>
+  <text x="246" y="52" font-family="Arial" font-size="27" font-weight="bold" fill="#0f172a">Empréstimos</text>
+  <text x="246" y="78" font-family="Arial" font-size="14" fill="#64748b">Exemplares do condomínio, entregas e devoluções</text>
+  <rect x="902" y="23" width="184" height="40" rx="6" fill="#2558f4"/>
+  <text x="920" y="48" font-family="Arial" font-size="14" font-weight="bold" fill="white">Registrar empréstimo</text>
+  <text x="248" y="135" font-family="Arial" font-size="15" font-weight="bold" fill="#2558f4">Pendentes</text>
+  <text x="388" y="135" font-family="Arial" font-size="15" fill="#475569">Exemplares</text>
+  <text x="525" y="135" font-family="Arial" font-size="15" fill="#475569">Histórico</text>
+  <path d="M246 150H1090" stroke="#cbd5e1"/><path d="M246 150H328" stroke="#2558f4" stroke-width="3"/>
+  <rect x="246" y="178" width="844" height="176" rx="8" fill="white" stroke="#dbe3ef"/>
+  <text x="268" y="212" font-family="Arial" font-size="17" font-weight="bold" fill="#0f172a">Pendentes</text>
+  <path d="M268 230H1068" stroke="#e2e8f0"/>
+  <text x="268" y="270" font-family="Arial" font-size="14" font-weight="bold" fill="#0f172a">Chave da sala 204 · Cópia 1</text>
+  <text x="268" y="294" font-family="Arial" font-size="12" fill="#64748b">Retirado em 21/10/2026 às 10:32</text>
+  <text x="595" y="274" font-family="Arial" font-size="14" fill="#0f172a">João Silva</text>
+  <rect x="779" y="252" width="87" height="29" rx="15" fill="#fef3c7"/>
+  <text x="795" y="272" font-family="Arial" font-size="13" fill="#92400e">Pendente</text>
+  <text x="915" y="272" font-family="Arial" font-size="14" font-weight="bold" fill="#2558f4">Registrar devolução →</text>
+  <text x="246" y="419" font-family="Arial" font-size="22" font-weight="bold" fill="#0f172a">Registrar empréstimo</text>
+  <rect x="246" y="438" width="520" height="179" rx="8" fill="white" stroke="#dbe3ef"/>
+  <text x="268" y="470" font-family="Arial" font-size="13" fill="#334155">Exemplar disponível</text>
+  <rect x="268" y="480" width="474" height="35" rx="5" fill="white" stroke="#cbd5e1"/>
+  <text x="280" y="503" font-family="Arial" font-size="13" fill="#64748b">Selecione o exemplar</text>
+  <text x="268" y="540" font-family="Arial" font-size="13" fill="#334155">Nome de quem recebe</text>
+  <rect x="268" y="549" width="474" height="35" rx="5" fill="white" stroke="#cbd5e1"/>
+  <text x="280" y="572" font-family="Arial" font-size="13" fill="#94a3b8">Nome completo</text>
+  <text x="268" y="603" font-family="Arial" font-size="12" fill="#64748b">Data e hora da retirada registradas automaticamente · sem prazo previsto</text>
+</svg>

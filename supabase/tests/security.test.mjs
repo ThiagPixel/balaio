@@ -8,6 +8,7 @@ const migration = await readFile(new URL('../migrations/0023_security_hardening.
 const reportsMigration = await readFile(new URL('../migrations/0024_management_reports.sql', import.meta.url), 'utf8');
 const reportStockMigration = await readFile(new URL('../migrations/0026_report_current_stock.sql', import.meta.url), 'utf8');
 const loansMigration = await readFile(new URL('../migrations/0025_item_loans.sql', import.meta.url), 'utf8');
+const loansWithoutDueDateMigration = await readFile(new URL('../migrations/0029_item_loans_without_due_date.sql', import.meta.url), 'utf8');
 const serviceOrdersMigration = await readFile(new URL('../migrations/0027_service_orders.sql', import.meta.url), 'utf8');
 const serviceOrderPriorityMigration = await readFile(new URL('../migrations/0028_service_order_priority.sql', import.meta.url), 'utf8');
 const ids = {
@@ -332,7 +333,23 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await denied(`select public.finish_item_loan('${loanId}');`, 'P0002');
       assert.equal((await rows("select count(*) from public.list_item_loans('RETURNED')"))[0].count, 2);
       assert.equal((await rows('select available from public.list_loan_items() where id = ' + literal(itemA)))[0].available, true);
-      await db.exec(`select public.start_item_loan('${itemA}', 'Nova pessoa', current_date + 1);`);
+      const oldClientLoan = (await rows(`select public.start_item_loan('${itemA}', 'Nova pessoa', current_date + 1) as id`))[0].id;
+      await as('postgres');
+      await db.exec(loansWithoutDueDateMigration);
+      await as('authenticated', ids.owner);
+      assert.equal((await rows(`select public.get_open_item_loan('${oldClientLoan}') as data`))[0].data.borrower_name, 'Nova pessoa');
+      await db.exec(`select public.finish_item_loan('${oldClientLoan}');`);
+      const pendingId = (await rows(`select public.start_item_loan('${itemA}', 'Sem prazo', null) as id`))[0].id;
+      const pending = (await rows(`select * from public.list_item_loans('OPEN') where id = '${pendingId}'`))[0];
+      assert.equal(pending.due_date, null);
+      assert.ok(pending.checked_out_at);
+      assert.equal(pending.returned_at, null);
+      assert.equal(Number((await rows('select public.get_item_loan_dashboard() as data'))[0].data.open), 1);
+      await denied(`select public.start_item_loan('${itemA}', 'Duplicado', null);`, '23505');
+      await db.exec(`select public.finish_item_loan('${pendingId}');`);
+      const returned = (await rows(`select * from public.list_item_loans('RETURNED') where id = '${pendingId}'`))[0];
+      assert.ok(returned.returned_at);
+      assert.equal((await rows(`select public.get_open_item_loan('${pendingId}') as data`))[0].data, null);
     });
     await t.test('estoque preserva entradas, retiradas, ajustes e permissões existentes', async () => {
       await as('postgres');

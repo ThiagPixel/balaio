@@ -20,7 +20,6 @@ const checkoutSchema = z.object({
   item_id: z.string().uuid(),
   borrower_name: z.string().trim().min(2).max(120),
   borrower_affiliation: z.string().trim().max(120),
-  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().trim().max(1000),
 });
 const returnSchema = z.object({ loan_id: z.string().uuid(), notes: z.string().trim().max(1000) });
@@ -55,13 +54,13 @@ export async function saveLoanItem(_previous: LoanFormState, form: FormData): Pr
 
 export async function startLoan(_previous: LoanFormState, form: FormData): Promise<LoanFormState> {
   const parsed = checkoutSchema.safeParse(Object.fromEntries(form.entries()));
-  if (!parsed.success) return { error: "Confira o exemplar, o recebedor e o prazo de devolução." };
+  if (!parsed.success) return { error: "Confira o exemplar e o nome de quem recebe." };
   try {
     const { supabase } = await requirePermission(PERMISSIONS.LOANS_LEND);
     const { error } = await supabase.rpc("start_item_loan", {
       p_item_id: parsed.data.item_id, p_borrower_name: parsed.data.borrower_name,
       p_borrower_affiliation: parsed.data.borrower_affiliation || null,
-      p_due_date: parsed.data.due_date, p_notes: parsed.data.notes || null,
+      p_due_date: null, p_notes: parsed.data.notes || null,
     });
     if (error) return { error: dbError(error, "Não foi possível registrar o empréstimo.") };
     revalidatePath("/loans");

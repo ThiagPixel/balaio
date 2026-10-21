@@ -26,27 +26,26 @@ export function ItemForm({ item }: { item?: LoanItem }) {
   </form>;
 }
 
-export function CheckoutForm({ items, today }: { items: LoanItem[]; today: string }) {
+export function CheckoutForm({ items }: { items: LoanItem[] }) {
   const [state, action] = useFormState(startLoan, null);
   return <form action={action} className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
     <Feedback state={state} />
     <label className={label}>Exemplar disponível<select className={input} name="item_id" required defaultValue=""><option value="" disabled>Selecione o exemplar</option>{items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.identifier}</option>)}</select></label>
     <label className={label}>Nome de quem recebe<input className={input} name="borrower_name" required minLength={2} maxLength={120} placeholder="Nome completo" /></label>
     <label className={label}>Vínculo ou empresa (opcional)<input className={input} name="borrower_affiliation" maxLength={120} placeholder="Funcionário, prestador, empresa..." /></label>
-    <label className={label}>Devolução prevista<input className={input} type="date" name="due_date" min={today} required /></label>
     <label className={label}>Observações (opcional)<textarea className={input} name="notes" rows={3} maxLength={1000} /></label>
-    <p className="text-xs text-slate-500">Ao confirmar, você autoriza o empréstimo. O exemplar ficará indisponível até a devolução.</p>
+    <p className="text-xs text-slate-500">A data e a hora da retirada serão registradas automaticamente. O empréstimo ficará pendente até a devolução.</p>
     <SubmitButton pendingLabel="Registrando empréstimo...">Confirmar empréstimo</SubmitButton>
   </form>;
 }
 
-export function ReturnForm({ loan }: { loan: { id: string; item_name: string; item_identifier: string; borrower_name: string; due_date: string } }) {
+export function ReturnForm({ loan }: { loan: { id: string; item_name: string; item_identifier: string; borrower_name: string; checked_out_at: string } }) {
   const [state, action] = useFormState(finishLoan, null);
   return <form action={action} className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
     <Feedback state={state} /><input type="hidden" name="loan_id" value={loan.id} />
-    <div className="rounded-md bg-slate-50 p-4 text-sm"><strong>{loan.item_name} · {loan.item_identifier}</strong><p className="mt-1 text-slate-600">Entregue a {loan.borrower_name} · devolução prevista em {new Date(`${loan.due_date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</p></div>
+    <div className="rounded-md bg-slate-50 p-4 text-sm"><strong>{loan.item_name} · {loan.item_identifier}</strong><p className="mt-1 text-slate-600">Entregue a {loan.borrower_name} em {new Date(loan.checked_out_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p></div>
     <label className={label}>Condição e observações na devolução (opcional)<textarea className={input} name="notes" rows={4} maxLength={1000} placeholder="Ex.: devolvido em boas condições" /></label>
-    <p className="text-xs text-slate-500">Ao confirmar, você registra o recebimento e libera o exemplar para outro empréstimo.</p>
+    <p className="text-xs text-slate-500">A data e a hora da devolução serão registradas automaticamente. O exemplar ficará disponível novamente.</p>
     <SubmitButton>Confirmar devolução</SubmitButton>
   </form>;
 }
