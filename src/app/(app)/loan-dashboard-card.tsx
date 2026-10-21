@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export function LoanDashboardCard({ data, canLend }: { data: LoanDashboard; canLend: boolean }) {
+export function LoanDashboardCard({ data, canLend }: { data: LoanDashboard; canLend: boolean; today?: string }) {
   const [open, setOpen] = useState(false);
   return <Card className="lg:col-span-2">
     <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
