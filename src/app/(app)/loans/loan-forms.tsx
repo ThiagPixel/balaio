@@ -22,7 +22,7 @@ export function ItemForm({ item }: { item?: LoanItem }) {
     <label className={label}>Descrição (opcional)<textarea className={input} name="description" maxLength={500} rows={3} defaultValue={item?.description ?? ""} /></label>
     {item && <label className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="active" defaultChecked={item.active} />Ativo para novos empréstimos</label>}
     {!item && <input type="hidden" name="active" value="on" />}
-    <SubmitButton>Salvar exemplar</SubmitButton>
+    <SubmitButton pendingLabel="Salvando exemplar...">Salvar exemplar</SubmitButton>
   </form>;
 }
 
@@ -36,7 +36,7 @@ export function CheckoutForm({ items, today }: { items: LoanItem[]; today: strin
     <label className={label}>Devolução prevista<input className={input} type="date" name="due_date" min={today} required /></label>
     <label className={label}>Observações (opcional)<textarea className={input} name="notes" rows={3} maxLength={1000} /></label>
     <p className="text-xs text-slate-500">Ao confirmar, você autoriza o empréstimo. O exemplar ficará indisponível até a devolução.</p>
-    <SubmitButton>Confirmar empréstimo</SubmitButton>
+    <SubmitButton pendingLabel="Registrando empréstimo...">Confirmar empréstimo</SubmitButton>
   </form>;
 }
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -45,11 +46,11 @@ export async function saveLoanItem(_previous: LoanFormState, form: FormData): Pr
     });
     if (error) return { error: dbError(error, "Não foi possível salvar o exemplar.") };
     revalidatePath("/loans");
-    return { success: "Exemplar salvo." };
   } catch (error) {
     if (isPermissionDeniedError(error)) return { error: error.message };
     throw error;
   }
+  redirect("/loans?tab=available");
 }
 
 export async function startLoan(_previous: LoanFormState, form: FormData): Promise<LoanFormState> {
@@ -65,11 +66,11 @@ export async function startLoan(_previous: LoanFormState, form: FormData): Promi
     if (error) return { error: dbError(error, "Não foi possível registrar o empréstimo.") };
     revalidatePath("/loans");
     revalidatePath("/");
-    return { success: "Empréstimo registrado. O exemplar agora está indisponível até a devolução." };
   } catch (error) {
     if (isPermissionDeniedError(error)) return { error: error.message };
     throw error;
   }
+  redirect("/loans");
 }
 
 export async function finishLoan(_previous: LoanFormState, form: FormData): Promise<LoanFormState> {
