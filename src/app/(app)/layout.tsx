@@ -79,6 +79,10 @@ export default async function AppLayout({
     });
   }
 
+  if (can(access, PERMISSIONS.LOANS_VIEW)) {
+    navigation.push({ name: "Empréstimos", href: "/loans", icon: "🔑" });
+  }
+
   if (
     can(
       access,

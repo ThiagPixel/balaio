@@ -6,6 +6,7 @@ import { PGlite } from '@electric-sql/pglite';
 const fixture = JSON.parse((await readFile(new URL('./fixtures/security-schema-before.json', import.meta.url), 'utf8')).replace(/^\uFEFF/, ''));
 const migration = await readFile(new URL('../migrations/0023_security_hardening.sql', import.meta.url), 'utf8');
 const reportsMigration = await readFile(new URL('../migrations/0024_management_reports.sql', import.meta.url), 'utf8');
+const loansMigration = await readFile(new URL('../migrations/0025_item_loans.sql', import.meta.url), 'utf8');
 const ids = {
   tenantA: '10000000-0000-4000-8000-000000000001', tenantB: '10000000-0000-4000-8000-000000000002',
   owner: '20000000-0000-4000-8000-000000000001', member: '20000000-0000-4000-8000-000000000002',
@@ -278,6 +279,52 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await denied(`select public.get_stock_report(current_date, current_date, '${ids.productB}');`, '22023');
       await denied(`select public.get_stock_report(current_date, current_date, null, 'INVALID');`, '22023');
       await denied('select public.get_stock_report(current_date, current_date - 1, null);', '22023');
+    });
+    await t.test('empréstimos exigem permissão e impedem entrega duplicada ou entre empresas', async () => {
+      await as('postgres');
+      await db.exec(loansMigration);
+      await as('anon');
+      await denied('select * from public.list_loan_items();');
+      await denied("select public.save_loan_item('Chave', 'Cópia 1');");
+      await as('authenticated', ids.member);
+      await denied('select * from public.list_loan_items();');
+      await denied("select public.save_loan_item('Chave', 'Cópia 1');");
+      await denied('select * from public.loan_items;');
+      await as('authenticated', ids.inactive);
+      await denied('select * from public.list_loan_items();');
+      await as('authenticated', ids.owner);
+      const itemA = (await rows("select public.save_loan_item('Chave da sala 204', 'Cópia 1') as id"))[0].id;
+      const itemB = (await rows("select public.save_loan_item('Controle do portão', 'Controle 2') as id"))[0].id;
+      assert.equal((await rows('select count(*) from public.list_loan_items()'))[0].count, 2);
+      const loanId = (await rows(`select public.start_item_loan('${itemA}', 'João Externo', current_date + 1) as id`))[0].id;
+      await denied(`select public.start_item_loan('${itemA}', 'Outro', current_date + 1);`, '23505');
+      assert.equal((await rows("select count(*) from public.list_item_loans('OPEN')"))[0].count, 1);
+      const summary = (await rows('select public.get_item_loan_dashboard() as data'))[0].data;
+      assert.equal(Number(summary.open), 1);
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions(user_id, permission_key) values ('${ids.member}', 'loans.view');`);
+      await as('authenticated', ids.member);
+      assert.equal((await rows('select count(*) from public.list_loan_items()'))[0].count, 2);
+      await denied(`select public.start_item_loan('${itemB}', 'Maria', current_date + 1);`);
+      await denied(`select public.finish_item_loan('${loanId}');`);
+      await as('postgres');
+      await db.exec(`insert into private.user_permissions(user_id, permission_key)
+        values ('${ids.member}', 'loans.lend'), ('${ids.member}', 'loans.return');`);
+      await as('authenticated', ids.member);
+      const memberLoan = (await rows(`select public.start_item_loan('${itemB}', 'Maria', current_date + 1) as id`))[0].id;
+      await denied("select public.save_loan_item('Outra chave', 'Cópia 3');");
+      await db.exec(`select public.finish_item_loan('${memberLoan}', 'Recebido');`);
+      await as('authenticated', ids.ownerB);
+      assert.equal((await rows('select count(*) from public.list_loan_items()'))[0].count, 0);
+      assert.equal((await rows(`select public.get_open_item_loan('${loanId}') as data`))[0].data, null);
+      await denied(`select public.start_item_loan('${itemB}', 'Outra empresa', current_date + 1);`, 'P0002');
+      await denied(`select public.finish_item_loan('${loanId}');`, 'P0002');
+      await as('authenticated', ids.owner);
+      await db.exec(`select public.finish_item_loan('${loanId}', 'Boas condições');`);
+      await denied(`select public.finish_item_loan('${loanId}');`, 'P0002');
+      assert.equal((await rows("select count(*) from public.list_item_loans('RETURNED')"))[0].count, 2);
+      assert.equal((await rows('select available from public.list_loan_items() where id = ' + literal(itemA)))[0].available, true);
+      await db.exec(`select public.start_item_loan('${itemA}', 'Nova pessoa', current_date + 1);`);
     });
     t.diagnostic(`${checks} tentativas indevidas rejeitadas; falhas reproduzidas antes e bloqueadas depois.`);
   } finally {

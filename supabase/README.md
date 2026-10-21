@@ -1,5 +1,27 @@
 # Estado do banco de dados
 
+## Empréstimos de exemplares (0025)
+
+`migrations/0025_item_loans.sql` cria exemplares devolvíveis e histórico de
+entrega/devolução, sem usar `stock_movements`. Aplique uma única vez, após 0023 e
+0024, no SQL Editor do ambiente conferido. A migration é aditiva e deve entrar
+**antes** do código da aplicação: o dashboard chama a RPC nova para contas com
+`loans.view`.
+
+Permissões: `loans.view`, `loans.manage`, `loans.lend` e `loans.return`.
+Proprietários as recebem pelo modelo atual; membros só por atribuição explícita.
+As tabelas têm RLS forçada e nenhum acesso direto para `authenticated`; as RPCs
+exigem permissão e restringem todas as operações à empresa ativa. Uma chave
+única parcial impede dois empréstimos abertos do mesmo exemplar, inclusive em
+solicitações simultâneas. Inativar um exemplar impede novas entregas e preserva
+o histórico e a eventual entrega ainda em aberto.
+
+`npm run test:security` executa a migration em PGlite isolado, sem conexão com a
+produção. O futuro teste integrado deve usar uma empresa exclusiva de
+desenvolvimento e contas de teste, sem dados operacionais ou credenciais reais
+nas fixtures. Validar leitura, cadastro, entrega, devolução, negações e isolamento
+entre empresas antes de liberar acesso aos usuários do condomínio.
+
 ## Relatórios de gestão (0024)
 
 `migrations/0024_management_reports.sql` acrescenta três RPCs de leitura:

@@ -25,6 +25,11 @@ export const PERMISSIONS = {
   STOCK_OUT: "stock.out",
   STOCK_ADJUST: "stock.adjust",
 
+  LOANS_VIEW: "loans.view",
+  LOANS_MANAGE: "loans.manage",
+  LOANS_LEND: "loans.lend",
+  LOANS_RETURN: "loans.return",
+
   FINANCE_VIEW: "finance.view",
   FINANCE_CREATE: "finance.create",
   FINANCE_SETTLE: "finance.settle",

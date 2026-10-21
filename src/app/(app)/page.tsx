@@ -6,6 +6,8 @@ import {
   requirePagePermission,
 } from "@/lib/supabase/access";
 import { createClient } from "@/lib/supabase/server";
+import { brazilToday, type LoanDashboard } from "@/lib/loans";
+import { LoanDashboardCard } from "./loan-dashboard-card";
 import {
   formatCurrency,
   formatDate,
@@ -82,6 +84,9 @@ export default async function DashboardPage() {
     PERMISSIONS.FINANCE_VIEW,
   );
 
+  const canViewLoans = can(access, PERMISSIONS.LOANS_VIEW);
+  const canLend = can(access, PERMISSIONS.LOANS_LEND);
+
   const supabase = await createClient();
 
   let stockData: DashboardStockData | null =
@@ -90,6 +95,7 @@ export default async function DashboardPage() {
   let financialData:
     | DashboardFinancialData
     | null = null;
+  let loanData: LoanDashboard | null = null;
 
   if (canViewStock) {
     const { data, error } =
@@ -141,6 +147,12 @@ export default async function DashboardPage() {
 
     financialData =
       data as DashboardFinancialData;
+  }
+
+  if (canViewLoans) {
+    const { data, error } = await supabase.rpc("get_item_loan_dashboard");
+    if (error) throw new Error("Não foi possível carregar os empréstimos. Verifique a migration 0025.");
+    loanData = data as LoanDashboard;
   }
 
   const hasIndicators =
@@ -437,6 +449,8 @@ export default async function DashboardPage() {
             </Card>
           </>
         )}
+
+        {loanData && <LoanDashboardCard data={loanData} canLend={canLend} today={brazilToday()} />}
 
         {/* Estoque baixo */}
         {stockData && (
