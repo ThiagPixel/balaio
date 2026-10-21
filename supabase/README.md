@@ -24,6 +24,14 @@ entre empresas antes de liberar acesso aos usuários do condomínio.
 
 ## Relatórios de gestão (0024)
 
+`migrations/0026_report_current_stock.sql` acrescenta uma RPC de leitura para
+exibir o estoque **atual** do produto selecionado, sempre restrita à empresa e à
+permissão `stock.view`. Aplique depois de 0024 e antes de publicar a interface
+que exibe o novo indicador. “Diferença no período” é entradas menos retiradas
+filtradas; não representa necessariamente o estoque restante, pois pode haver
+saldo anterior, ajustes ou movimentações fora do intervalo. O saldo atual é
+mostrado separadamente e não corresponde obrigatoriamente à data final filtrada.
+
 `migrations/0024_management_reports.sql` acrescenta três RPCs de leitura:
 `list_report_products`, `get_stock_report` e `get_financial_report`. Execute após
 `0023`, primeiro em ambiente de teste e depois no projeto conferido, somente

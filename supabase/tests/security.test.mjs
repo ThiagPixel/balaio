@@ -6,6 +6,7 @@ import { PGlite } from '@electric-sql/pglite';
 const fixture = JSON.parse((await readFile(new URL('./fixtures/security-schema-before.json', import.meta.url), 'utf8')).replace(/^\uFEFF/, ''));
 const migration = await readFile(new URL('../migrations/0023_security_hardening.sql', import.meta.url), 'utf8');
 const reportsMigration = await readFile(new URL('../migrations/0024_management_reports.sql', import.meta.url), 'utf8');
+const reportStockMigration = await readFile(new URL('../migrations/0026_report_current_stock.sql', import.meta.url), 'utf8');
 const loansMigration = await readFile(new URL('../migrations/0025_item_loans.sql', import.meta.url), 'utf8');
 const ids = {
   tenantA: '10000000-0000-4000-8000-000000000001', tenantB: '10000000-0000-4000-8000-000000000002',
@@ -227,6 +228,7 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await as('postgres');
       await db.exec(reportsMigration);
       await db.exec(reportsMigration);
+      await db.exec(reportStockMigration);
       await db.exec(`delete from public.stock_movements;
         delete from public.transactions;
         insert into public.stock_movements (tenant_id, product_id, type, quantity, created_at) values
@@ -241,9 +243,11 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await as('anon');
       await denied('select public.get_stock_report(current_date, current_date, null);');
       await denied('select public.get_financial_report(current_date, current_date);');
+      await denied(`select public.get_report_product_current_stock('${ids.productA}');`);
       await as('authenticated', ids.member);
       await denied('select public.get_stock_report(current_date, current_date, null);');
       await denied('select public.get_financial_report(current_date, current_date);');
+      await denied(`select public.get_report_product_current_stock('${ids.productA}');`);
       await as('authenticated', ids.inactive);
       await denied('select public.get_stock_report(current_date, current_date, null);');
       await as('postgres');
@@ -252,6 +256,8 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await as('authenticated', ids.member);
       assert.equal(Number((await rows('select public.get_stock_report(current_date, current_date, null) as report'))[0].report.records), 3);
       assert.ok((await rows('select count(*) from public.list_report_products()'))[0].count > 0);
+      assert.equal(Number((await rows(`select public.get_report_product_current_stock('${ids.productA}') as stock`))[0].stock), 10);
+      await denied(`select public.get_report_product_current_stock('${ids.productB}');`, 'P0002');
       await denied('select public.get_financial_report(current_date, current_date);');
       await as('postgres');
       await db.exec(`insert into private.user_permissions (user_id, permission_key)
