@@ -45,11 +45,27 @@ function validDate(value: string) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return <Card><CardContent className="p-5">
-    <p className="text-sm text-slate-600">{label}</p>
-    <p className="mt-1 text-2xl font-bold tabular-nums text-brand-700">{value}</p>
-    {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
+type MetricIcon = "in" | "out" | "records" | "days" | "adjust" | "products";
+function Icon({ kind }: { kind: MetricIcon }) {
+  const paths: Record<MetricIcon, React.ReactNode> = {
+    in: <><path d="M12 19V5m0 0-5 5m5-5 5 5" /><path d="M4 19h16" /></>,
+    out: <><path d="M12 5v14m0 0-5-5m5 5 5-5" /><path d="M4 5h16" /></>,
+    records: <><path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" /><path d="M14 3v5h5M9 12h6M9 16h6" /></>,
+    days: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 10h18" /></>,
+    adjust: <><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" fill="currentColor" stroke="none" /><circle cx="15" cy="17" r="2" fill="currentColor" stroke="none" /></>,
+    products: <><path d="m12 2 9 5-9 5-9-5 9-5ZM3 7v10l9 5 9-5V7M12 12v10" /></>,
+  };
+  return <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[kind]}</svg>;
+}
+
+function Metric({ label, value, detail, icon, tone = "blue" }: { label: string; value: string; detail?: string; icon: MetricIcon; tone?: "blue" | "green" | "rose" }) {
+  const toneClass = tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "rose" ? "bg-rose-50 text-rose-600" : "bg-blue-50 text-brand-700";
+  return <Card className="min-w-0 rounded-xl"><CardContent className="flex items-center gap-4 p-4 sm:p-5">
+    <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${toneClass}`}><Icon kind={icon} /></span>
+    <div className="min-w-0"><p className="text-sm text-slate-600">{label}</p>
+      <p className="mt-0.5 text-2xl font-bold tabular-nums leading-tight text-slate-950">{value}</p>
+      {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
+    </div>
   </CardContent></Card>;
 }
 
@@ -108,9 +124,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   const biggestMonth = stock?.months.reduce<Month | null>((best, current) =>
     !best || current.outgoing > best.outgoing ? current : best, null);
+  const biggestIncomingMonth = stock?.months.reduce<Month | null>((best, current) =>
+    !best || current.incoming > best.incoming ? current : best, null);
   const sameUnit = stock && new Set(stock.products.map((item) => item.unit)).size === 1;
   const topProduct = sameUnit ? stock?.products.find((item) => item.outgoing > 0) : null;
   const maxMonthly = Math.max(1, ...(stock?.months ?? []).flatMap((item) => [item.incoming, item.outgoing]));
+  const chartHeight = 210;
 
   return <div className="space-y-6">
     <div>
@@ -143,41 +162,55 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     </CardContent></Card>
 
     {!filterError && !invalidProduct && <>
-      {stock && <section aria-labelledby="stock-report" className="space-y-4">
-        <div><h2 id="stock-report" className="text-xl font-semibold text-slate-900">Estoque</h2>
-          <p className="text-sm text-slate-600">{formatDate(`${start}T12:00:00Z`)} a {formatDate(`${end}T12:00:00Z`)} · Ajustes são registros de saldo, não consumo.</p></div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {chosenProduct && <><Metric label="Entradas" value={`${count(stock.incoming)} ${chosenProduct.unit}`} />
-            <Metric label="Saídas" value={`${count(stock.outgoing)} ${chosenProduct.unit}`} /></>}
-          <Metric label="Movimentações" value={count(stock.records)} detail="Entradas, saídas e ajustes" />
-          <Metric label="Dias com movimentação" value={count(stock.active_days)} />
-          <Metric label="Ajustes registrados" value={count(stock.adjustments)} detail="Quantidade de registros, não unidades perdidas" />
-          {!chosenProduct && <Metric label="Produtos movimentados" value={count(stock.products.length)} />}
+      {stock && <section aria-labelledby="stock-report" className="space-y-5">
+        <div><p className="text-xs font-semibold uppercase tracking-widest text-brand-700">Relatório de estoque</p>
+          <h2 id="stock-report" className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{chosenProduct ? `Movimentação de ${chosenProduct.name}` : "Visão geral das movimentações"}</h2>
+          <p className="mt-1 text-sm text-slate-600">Período analisado: {formatDate(`${start}T12:00:00Z`)} a {formatDate(`${end}T12:00:00Z`)}</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {chosenProduct && <><Metric label="Entradas" value={`${count(stock.incoming)} ${chosenProduct.unit}`} icon="in" tone="green" />
+            <Metric label="Retiradas" value={`${count(stock.outgoing)} ${chosenProduct.unit}`} icon="out" /></>}
+          <Metric label="Registros" value={count(stock.records)} icon="records" detail="Entradas, saídas e ajustes" />
+          <Metric label="Dias com movimentação" value={count(stock.active_days)} icon="days" />
+          <Metric label="Ajustes de saldo" value={count(stock.adjustments)} icon="adjust" tone="rose" detail="Número de registros" />
+          {!chosenProduct && <Metric label="Produtos movimentados" value={count(stock.products.length)} icon="products" />}
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-          <Card><CardHeader><CardTitle>Evolução mensal</CardTitle>
-            <p className="text-sm text-slate-500">Entradas e saídas do produto selecionado.</p>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+          <Card className="rounded-xl"><CardHeader className="flex-row flex-wrap items-start justify-between gap-3">
+            <div><CardTitle className="text-xl">Movimentação mensal</CardTitle><p className="mt-2 text-sm text-slate-500">Entradas e retiradas por mês{chosenProduct ? ` · ${chosenProduct.unit}` : ""}</p></div>
+            {chosenProduct && <div className="flex gap-4 text-xs text-slate-600"><span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Entradas</span><span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-brand-600" />Retiradas</span></div>}
           </CardHeader><CardContent>
-            {!chosenProduct ? <p className="text-sm text-slate-600">Selecione um produto para ver a evolução em sua unidade de medida.</p>
-              : stock.months.length === 0 ? <p className="text-sm text-slate-600">Nenhuma movimentação neste período.</p>
-              : <div className="space-y-4">{stock.months.map((item) => <div key={item.month} className="grid grid-cols-[5rem_1fr] items-center gap-3 text-sm">
-                <span className="font-medium capitalize text-slate-700">{monthLabel(item.month)}</span>
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2"><span className="w-11 text-xs text-slate-500">Entrada</span><div className="h-3 min-w-0 flex-1 rounded bg-slate-100"><div className="h-3 rounded bg-emerald-500" style={{ width: `${item.incoming / maxMonthly * 100}%` }} /></div><span className="w-12 text-right tabular-nums">{count(item.incoming)}</span></div>
-                  <div className="flex items-center gap-2"><span className="w-11 text-xs text-slate-500">Saída</span><div className="h-3 min-w-0 flex-1 rounded bg-slate-100"><div className="h-3 rounded bg-brand-600" style={{ width: `${item.outgoing / maxMonthly * 100}%` }} /></div><span className="w-12 text-right tabular-nums">{count(item.outgoing)}</span></div>
+            {!chosenProduct ? <p className="py-12 text-center text-sm text-slate-600">Selecione um produto para comparar quantidades na mesma unidade de medida.</p>
+              : stock.months.length === 0 ? <p className="py-12 text-center text-sm text-slate-600">Nenhuma movimentação neste período.</p>
+              : <div className="overflow-x-auto pb-1"><div style={{ minWidth: Math.max(480, stock.months.length * 76) }}>
+                <div className="relative pl-10">
+                  <div className="pointer-events-none absolute inset-y-0 left-10 right-0 flex flex-col justify-between border-b border-slate-300">{[4, 3, 2, 1, 0].map((step) => <div key={step} className="relative border-t border-slate-100"><span className="absolute -left-10 -top-2.5 w-8 text-right text-xs tabular-nums text-slate-500">{count(Math.ceil(maxMonthly * step / 4))}</span></div>)}</div>
+                  <div className="relative z-10 flex items-end gap-4 px-3" style={{ height: chartHeight }}>
+                    {stock.months.map((item) => <div key={item.month} className="flex h-full min-w-12 flex-1 items-end justify-center gap-1.5" aria-label={`${monthLabel(item.month)}: ${count(item.incoming)} entradas e ${count(item.outgoing)} retiradas`}>
+                      <div className="group relative w-full max-w-12 rounded-t bg-emerald-500/90" style={{ height: `${item.incoming / maxMonthly * 100}%` }} title={`${count(item.incoming)} entradas`}><span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-semibold tabular-nums text-emerald-700">{item.incoming > 0 ? count(item.incoming) : ""}</span></div>
+                      <div className="group relative w-full max-w-12 rounded-t bg-brand-600" style={{ height: `${item.outgoing / maxMonthly * 100}%` }} title={`${count(item.outgoing)} retiradas`}><span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs font-semibold tabular-nums text-brand-700">{item.outgoing > 0 ? count(item.outgoing) : ""}</span></div>
+                    </div>)}
+                  </div>
                 </div>
-              </div>)}</div>}
+                <div className="flex gap-4 pl-10 pr-3 pt-3">{stock.months.map((item) => <span key={item.month} className="min-w-12 flex-1 text-center text-xs font-medium capitalize text-slate-600">{monthLabel(item.month)}</span>)}</div>
+              </div></div>}
           </CardContent></Card>
-          <Card><CardHeader><CardTitle>Destaques</CardTitle></CardHeader><CardContent className="space-y-4 text-sm text-slate-700">
-            {chosenProduct && (biggestMonth && biggestMonth.outgoing > 0 ? <p>Mais saídas em <strong className="capitalize">{monthLabel(biggestMonth.month)}</strong>: {count(biggestMonth.outgoing)} {chosenProduct.unit}.</p> : <p>Não houve saídas desse produto no período.</p>)}
-            {!chosenProduct && topProduct && <p>Produto com mais retiradas: <strong>{topProduct.name}</strong> ({count(topProduct.outgoing)} {topProduct.unit}).</p>}
-            {!chosenProduct && <p>O ranking compara quantidades dentro de cada produto; unidades de medida diferentes não devem ser somadas.</p>}
-            <p>{count(stock.adjustments)} ajuste(s) de saldo. O histórico atual não permite medir perdas a partir desses registros.</p>
+          <Card className="rounded-xl"><CardHeader><CardTitle className="text-xl">Destaques</CardTitle></CardHeader><CardContent className="space-y-5 text-sm text-slate-700">
+            {chosenProduct && <><div className="flex gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-brand-700"><Icon kind="out" /></span><p>{biggestMonth && biggestMonth.outgoing > 0 ? <>Mais retiradas em <strong className="capitalize">{monthLabel(biggestMonth.month)}</strong>: <strong>{count(biggestMonth.outgoing)} {chosenProduct.unit}</strong>.</> : "Não houve retiradas desse produto no período."}</p></div>
+              <div className="flex gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><Icon kind="in" /></span><p>{biggestIncomingMonth && biggestIncomingMonth.incoming > 0 ? <>Mais entradas em <strong className="capitalize">{monthLabel(biggestIncomingMonth.month)}</strong>: <strong>{count(biggestIncomingMonth.incoming)} {chosenProduct.unit}</strong>.</> : "Não houve entradas desse produto no período."}</p></div></>}
+            {!chosenProduct && topProduct && <p>Produto com mais retiradas entre os de mesma unidade: <strong>{topProduct.name}</strong> ({count(topProduct.outgoing)} {topProduct.unit}).</p>}
+            {!chosenProduct && <p>Selecione um produto para ver o gráfico e os destaques mensais.</p>}
+            <div className="flex gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600"><Icon kind="adjust" /></span><p><strong>{count(stock.adjustments)}</strong> ajuste(s) de saldo. Esses registros não indicam, por si só, quantas unidades foram perdidas.</p></div>
           </CardContent></Card>
         </div>
 
-        <Card><CardHeader><CardTitle>Produtos movimentados</CardTitle></CardHeader><CardContent>
+        {chosenProduct && <Card className="rounded-xl"><CardHeader><CardTitle className="text-xl">Resumo mensal</CardTitle></CardHeader><CardContent>
+          {stock.months.length === 0 ? <p className="text-sm text-slate-600">Nenhuma movimentação neste período.</p> : <div className="divide-y divide-slate-100">{stock.months.map((item) => <div key={item.month} className="grid gap-2 py-3 text-sm sm:grid-cols-4 sm:items-center">
+            <strong className="capitalize text-slate-900">{monthLabel(item.month)}</strong><span className="font-medium tabular-nums text-emerald-700">{count(item.incoming)} entradas</span><span className="font-medium tabular-nums text-brand-700">{count(item.outgoing)} retiradas</span><span className="tabular-nums text-slate-600">{count(item.adjustments)} ajustes de saldo</span>
+          </div>)}</div>}
+        </CardContent></Card>}
+
+        <Card className="rounded-xl"><CardHeader><CardTitle>Produtos movimentados</CardTitle></CardHeader><CardContent>
           {stock.products.length === 0 ? <p className="text-sm text-slate-600">Nenhum produto no período.</p> : <div className="overflow-x-auto"><table className="w-full text-left text-sm">
             <thead className="border-b bg-slate-50 text-slate-600"><tr><th className="px-3 py-3">Produto</th><th className="px-3 py-3 text-right">Entradas</th><th className="px-3 py-3 text-right">Saídas</th><th className="px-3 py-3 text-right">Ajustes</th></tr></thead>
             <tbody>{stock.products.map((item) => <tr key={item.id} className="border-b last:border-b-0"><th className="px-3 py-3 font-medium text-slate-900">{item.name}<span className="ml-2 text-xs font-normal text-slate-500">{item.unit}</span></th><td className="px-3 py-3 text-right tabular-nums">{count(item.incoming)}</td><td className="px-3 py-3 text-right tabular-nums">{count(item.outgoing)}</td><td className="px-3 py-3 text-right tabular-nums">{count(item.adjustments)}</td></tr>)}</tbody>
@@ -190,10 +223,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <div><h2 id="finance-report" className="text-xl font-semibold text-slate-900">Financeiro realizado</h2>
           <p className="text-sm text-slate-600">Somente lançamentos pagos, agrupados pela data de pagamento. Não inclui pendências nem representa lucro contábil.</p></div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric label="Recebido" value={money(financial.received)} />
-          <Metric label="Pago" value={money(financial.paid)} />
-          <Metric label="Diferença" value={money(financial.balance)} detail="Recebimentos menos pagamentos" />
-          <Metric label="Lançamentos pagos" value={count(financial.records)} />
+          <Metric label="Recebido" value={money(financial.received)} icon="in" tone="green" />
+          <Metric label="Pago" value={money(financial.paid)} icon="out" />
+          <Metric label="Diferença" value={money(financial.balance)} detail="Recebimentos menos pagamentos" icon="adjust" />
+          <Metric label="Lançamentos pagos" value={count(financial.records)} icon="records" />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <Card><CardHeader><CardTitle>Por mês</CardTitle></CardHeader><CardContent>
