@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test:security": "node --test supabase/tests/security.test.mjs",
+    "test:service-order-links": "node --test tests/service-order-dashboard-links.test.mjs",
     "test:live-stock": "node supabase/tests/live-stock.mjs"
   },
   "dependencies": {

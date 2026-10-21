@@ -341,6 +341,7 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await db.exec(`select public.finish_item_loan('${oldClientLoan}');`);
       const pendingId = (await rows(`select public.start_item_loan('${itemA}', 'Sem prazo', null) as id`))[0].id;
       const pending = (await rows(`select * from public.list_item_loans('OPEN') where id = '${pendingId}'`))[0];
+      assert.equal(pending.id, pendingId);
       assert.equal(pending.due_date, null);
       assert.ok(pending.checked_out_at);
       assert.equal(pending.returned_at, null);
@@ -349,6 +350,7 @@ test('migration de segurança: ataques e fluxos permitidos', async (t) => {
       await db.exec(`select public.finish_item_loan('${pendingId}');`);
       const returned = (await rows(`select * from public.list_item_loans('RETURNED') where id = '${pendingId}'`))[0];
       assert.ok(returned.returned_at);
+      assert.equal((await rows(`select count(*) from public.list_item_loans('OPEN') where id = '${pendingId}'`))[0].count, 0);
       assert.equal((await rows(`select public.get_open_item_loan('${pendingId}') as data`))[0].data, null);
     });
     await t.test('estoque preserva entradas, retiradas, ajustes e permissões existentes', async () => {

@@ -6,10 +6,11 @@ import {
   requirePagePermission,
 } from "@/lib/supabase/access";
 import { createClient } from "@/lib/supabase/server";
-import { brazilToday, type LoanDashboard } from "@/lib/loans";
+import { type LoanDashboard } from "@/lib/loans";
 import { LoanDashboardCard } from "./loan-dashboard-card";
 import { ServiceOrderDashboardCard } from "./service-order-dashboard-card";
 import type { ServiceOrderDashboard } from "@/lib/service-orders";
+import { withServiceOrderIds } from "@/lib/service-order-dashboard-links";
 import {
   formatCurrency,
   formatDate,
@@ -163,6 +164,14 @@ export default async function DashboardPage() {
     const { data, error } = await supabase.rpc("get_service_order_dashboard");
     if (error) throw new Error("Não foi possível carregar os indicadores de OS. Verifique a migration 0027.");
     serviceOrderData = data as ServiceOrderDashboard;
+    if (serviceOrderData.urgent.some((order) => !order.id)) {
+      const { data: listedOrders, error: listError } = await supabase.rpc("list_service_orders", { p_limit: 200 });
+      if (listError) throw new Error("Não foi possível carregar os links das OS.");
+      serviceOrderData = {
+        ...serviceOrderData,
+        urgent: withServiceOrderIds(serviceOrderData.urgent, listedOrders as { id: string; number: number }[]),
+      };
+    }
   }
 
   const hasIndicators =
@@ -460,7 +469,7 @@ export default async function DashboardPage() {
           </>
         )}
 
-        {loanData && <LoanDashboardCard data={loanData} canLend={canLend} today={brazilToday()} />}
+        {loanData && <LoanDashboardCard data={loanData} canLend={canLend} />}
         {serviceOrderData && <ServiceOrderDashboardCard data={serviceOrderData} canCreate={can(access, PERMISSIONS.OS_CREATE)} />}
 
         {/* Estoque baixo */}
