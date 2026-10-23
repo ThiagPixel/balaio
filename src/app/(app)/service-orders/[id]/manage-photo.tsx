@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { prepareServiceOrderImage } from "@/lib/service-order-image";
 
-export function ManageOrderPhoto({ orderId, tenantId, hasPhoto }: {
-  orderId: string; tenantId: string; hasPhoto: boolean;
+export function ManageOrderPhoto({ orderId, tenantId, hasPhoto, compact = false }: {
+  orderId: string; tenantId: string; hasPhoto: boolean; compact?: boolean;
 }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
@@ -62,8 +62,8 @@ export function ManageOrderPhoto({ orderId, tenantId, hasPhoto }: {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível remover a foto."); }
     finally { setBusy(false); }
   }
-  return <details className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-    <summary className="cursor-pointer text-sm font-medium text-brand-600">{hasPhoto ? "Trocar ou remover foto" : "Adicionar foto"}</summary>
+  return <details className={compact ? "min-w-0 py-3" : "min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"}>
+    <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium text-brand-600">{hasPhoto ? "Trocar ou remover foto" : "Adicionar foto"}</summary>
     <div className="mt-4 space-y-3">
       <p className="text-xs text-slate-500">JPG, PNG ou WebP. A foto é reduzida a até 1 MB antes do envio.</p>
       <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy}

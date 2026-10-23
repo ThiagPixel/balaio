@@ -141,9 +141,9 @@ export function StartStepForm({ id, orderId }: { id: string; orderId: string }) 
 }
 export function EditStepForm({ step, orderId, people }: { step: ServiceOrderStep; orderId: string; people: Person[] }) {
   const [state, action] = useFormState(updateServiceOrderStep, null);
-  return <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-    <summary className="cursor-pointer text-sm font-medium text-brand-600">Editar etapa</summary>
-    <form action={action} className="mt-3 space-y-3"><Feedback state={state} />
+  return <details className="group mt-2 min-w-0 max-w-full">
+    <summary className="flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-brand-600 marker:hidden">Editar etapa <span aria-hidden="true" className="ml-1 transition-transform group-open:rotate-180">⌄</span></summary>
+    <form action={action} className="mt-2 min-w-0 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3"><Feedback state={state} />
       <input type="hidden" name="step_id" value={step.id} /><input type="hidden" name="order_id" value={orderId} />
       <label className={label}>Nome da etapa<input className={input} name="title" defaultValue={step.title} minLength={3} maxLength={160} required /></label>
       <label className={label}>Profissional<select className={input} name="assignee_id" defaultValue={step.assignee_id} required><PeopleOptions people={people} /></select></label>
@@ -153,11 +153,11 @@ export function EditStepForm({ step, orderId, people }: { step: ServiceOrderStep
     </form>
   </details>;
 }
-export function UpdateOrderForm({ order, people, today }: { order: ServiceOrder; people: Person[]; today: string }) {
+export function UpdateOrderForm({ order, people, today, compact = false }: { order: ServiceOrder; people: Person[]; today: string; compact?: boolean }) {
   const [state, action] = useFormState(updateServiceOrder, null);
   const [dueDate, setDueDate] = useState(order.due_date || today);
-  return <details className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-    <summary className="cursor-pointer text-sm font-medium text-brand-600">Editar dados da OS</summary>
+  return <details className={compact ? "min-w-0 border-b border-slate-100 py-3" : "min-w-0 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"}>
+    <summary className="flex min-h-9 cursor-pointer items-center text-sm font-medium text-brand-600">Editar dados da OS</summary>
     <form action={action} className="mt-4 space-y-4"><Feedback state={state} />
       <input type="hidden" name="order_id" value={order.id} />
       <label className={label}>Serviço<input className={input} name="title" defaultValue={order.title} minLength={3} maxLength={160} required /></label>
@@ -187,7 +187,7 @@ export function DeleteStepForm({ step, orderId }: { step: ServiceOrderStep; orde
   const [state, action] = useFormState(deleteServiceOrderStep, null);
   return <form action={action} onSubmit={(event) => { if (!window.confirm(`Excluir a etapa “${step.title}”? Etapas dependentes ficarão sem essa dependência.`)) event.preventDefault(); }} className="mt-2">
     <Feedback state={state} /><input type="hidden" name="step_id" value={step.id} /><input type="hidden" name="order_id" value={orderId} />
-    <SubmitButton size="sm" variant="outline" pendingLabel="Excluindo etapa...">Excluir etapa</SubmitButton>
+    <SubmitButton size="sm" variant="ghost" className="min-h-11 px-1 text-red-700 hover:bg-red-50" pendingLabel="Excluindo etapa...">Excluir etapa</SubmitButton>
   </form>;
 }
 export function ArchiveOrderForm({ id }: { id: string }) {

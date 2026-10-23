@@ -47,23 +47,32 @@ export default async function ServiceOrderPage({ params }: { params: { id: strin
   return <div className="space-y-5">
     <header>
       <Link href="/service-orders" className="text-sm text-brand-600">← Ordens de serviço</Link>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">OS #{order.number} · {order.title}</h1>
+      <div className="mt-3 flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="min-w-0 break-words text-2xl font-bold leading-tight text-slate-900 sm:text-3xl">OS #{order.number} · {order.title}</h1>
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">{order.archived_at ? "Excluída da operação" : SERVICE_ORDER_LABELS[order.status]}</span>
       </div>
-      <p className="mt-2 text-sm text-slate-600">{order.location_label || "Local não informado"} · Principal: {order.principal_name}{order.due_date ? ` · Prazo: ${new Date(`${order.due_date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</p>
+      <p className="mt-2 break-words text-sm leading-relaxed text-slate-600">{order.location_label || "Local não informado"} · Principal: {order.principal_name}{order.due_date ? ` · Prazo: ${new Date(`${order.due_date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" })}` : ""}</p>
     </header>
     {order.archived_at && <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
       Esta OS foi excluída da operação em {new Date(order.archived_at).toLocaleString("pt-BR")}. O histórico permanece disponível.
       {can(access, PERMISSIONS.OS_MANAGE) && <RestoreOrderForm id={order.id} />}
     </div>}
-    {can(access, PERMISSIONS.OS_MANAGE) && !order.archived_at && <div className="grid gap-3 lg:grid-cols-2">
-      {editable && people.length > 0 && <UpdateOrderForm order={order} people={people} today={brazilToday()} />}
-      {editable && <ManageOrderPhoto orderId={order.id} tenantId={order.tenant_id} hasPhoto={Boolean(imagePath)} />}
-    </div>}
+    {can(access, PERMISSIONS.OS_MANAGE) && editable && <>
+      <details className="group rounded-lg border border-slate-200 bg-white shadow-sm lg:hidden">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-4 text-sm font-medium text-brand-600 marker:hidden">Gerenciar OS <span aria-hidden="true" className="transition-transform group-open:rotate-180">⌄</span></summary>
+        <div className="space-y-2 border-t border-slate-100 px-4 pb-4 pt-2">
+          {people.length > 0 && <UpdateOrderForm order={order} people={people} today={brazilToday()} compact />}
+          <ManageOrderPhoto orderId={order.id} tenantId={order.tenant_id} hasPhoto={Boolean(imagePath)} compact />
+        </div>
+      </details>
+      <div className="hidden gap-3 lg:grid lg:grid-cols-2">
+        {people.length > 0 && <UpdateOrderForm order={order} people={people} today={brazilToday()} />}
+        <ManageOrderPhoto orderId={order.id} tenantId={order.tenant_id} hasPhoto={Boolean(imagePath)} />
+      </div>
+    </>}
 
     {(order.description || imagePath) && <Card>
-      <CardContent className="flex flex-wrap items-start justify-between gap-4 p-5 sm:flex-nowrap">
+      <CardContent className="flex min-w-0 flex-wrap items-start justify-between gap-3 p-4 sm:flex-nowrap sm:gap-4 sm:p-5">
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-slate-900">Sobre o serviço</h2>
           {order.description ? <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700">{order.description}</p>
@@ -79,28 +88,28 @@ export default async function ServiceOrderPage({ params }: { params: { id: strin
       {blockers.map((blocker) => <p key={blocker.id} className="mt-2 text-sm text-amber-900">{blocker.description}{blocker.responsible_name ? ` · responsável: ${blocker.responsible_name}` : ""}</p>)}
     </div>}
 
-    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <Card>
-        <CardHeader className="pb-3">
+    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <Card className="min-w-0">
+        <CardHeader className="p-4 pb-3 sm:p-6 sm:pb-3">
           <div className="flex items-center justify-between gap-3"><CardTitle>Etapas</CardTitle><span className="text-sm text-slate-600">{completedCount} de {order.steps.length}</span></div>
           <div role="progressbar" aria-label="Etapas concluídas" aria-valuenow={completedCount} aria-valuemin={0} aria-valuemax={order.steps.length} className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-brand-600" style={{ width: `${order.steps.length ? completedCount / order.steps.length * 100 : 0}%` }} />
           </div>
           <p className="pt-2 text-xs text-slate-500">{notStartedCount} não iniciada{notStartedCount === 1 ? "" : "s"}{supportsStepProgress && ` · ${order.steps.filter((step) => step.started_at && !step.completed_at).length} iniciada${order.steps.filter((step) => step.started_at && !step.completed_at).length === 1 ? "" : "s"}`} · {completedCount} concluída{completedCount === 1 ? "" : "s"}</p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
           <ol>
             {order.steps.map((step, index) => {
               const blocked = Boolean(step.depends_on_title && !step.depends_on_completed && !step.completed_at);
               const canExecute = !step.completed_at && !blocked && order.status === "IN_PROGRESS"
                 && step.assignee_id === access.user_id && can(access, PERMISSIONS.OS_EXECUTE);
-              return <li key={step.id} className="relative flex gap-4 pb-7 last:pb-0">
-                {index < order.steps.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[17px] top-9 w-0.5 bg-slate-200" />}
-                <span aria-hidden="true" className={`relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold ${step.completed_at ? "border-emerald-600 bg-emerald-50 text-emerald-700" : blocked ? "border-slate-300 bg-slate-50 text-slate-500" : "border-brand-600 bg-brand-50 text-brand-700"}`}>
+              return <li key={step.id} className="relative flex min-w-0 gap-3 pb-6 last:pb-0 sm:gap-4 sm:pb-7">
+                {index < order.steps.length - 1 && <span aria-hidden="true" className="absolute bottom-0 left-[15px] top-8 w-0.5 bg-slate-200 sm:left-[17px] sm:top-9" />}
+                <span aria-hidden="true" className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold sm:h-9 sm:w-9 ${step.completed_at ? "border-emerald-600 bg-emerald-50 text-emerald-700" : blocked ? "border-slate-300 bg-slate-50 text-slate-500" : "border-brand-600 bg-brand-50 text-brand-700"}`}>
                   {step.completed_at ? "✓" : step.position}
                 </span>
                 <div className="min-w-0 flex-1 border-b border-slate-100 pb-5 last:border-0">
-                  <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold text-slate-900">{step.title}</h3><StepState step={step} waiting={order.status === "WAITING"} /></div>
+                  <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:justify-between"><h3 className="min-w-0 break-words font-semibold text-slate-900">{step.title}</h3><StepState step={step} waiting={order.status === "WAITING"} /></div>
                   <p className="mt-1 text-xs text-slate-500">Profissional: {step.assignee_name}</p>
                   {blocked && <p className="mt-2 text-xs text-amber-700">Depende de: {step.depends_on_title}</p>}
                   {step.started_at && !step.completed_at && <p className="mt-2 text-xs text-blue-700">Iniciada em {new Date(step.started_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>}
@@ -110,7 +119,7 @@ export default async function ServiceOrderPage({ params }: { params: { id: strin
                   {order.status === "WAITING" && !step.completed_at && !blocked && <p className="mt-2 text-xs text-amber-700">A execução fica pausada até resolver as pendências da OS.</p>}
                   {!step.completed_at && !blocked && order.status === "OPEN" && <p className="mt-2 text-xs text-slate-500">Aguardando o início da OS.</p>}
                   {!step.completed_at && !blocked && order.status === "IN_PROGRESS" && !canExecute && <p className="mt-2 text-xs text-slate-500">{step.assignee_id !== access.user_id ? `Somente ${step.assignee_name} pode executar esta etapa.` : "Você precisa da permissão de executar etapas."}</p>}
-                  {!step.completed_at && !step.started_at && editable && people.length > 0 && <div className="flex flex-wrap items-start gap-2"><EditStepForm step={step} orderId={order.id} people={people} />{order.steps.length > 1 && <DeleteStepForm step={step} orderId={order.id} />}</div>}
+                  {!step.completed_at && !step.started_at && editable && people.length > 0 && <div className="flex min-w-0 flex-wrap items-start gap-x-3"><EditStepForm step={step} orderId={order.id} people={people} />{order.steps.length > 1 && <DeleteStepForm step={step} orderId={order.id} />}</div>}
                 </div>
               </li>;
             })}
