@@ -15,5 +15,5 @@ export default async function ReturnLoanPage({ params }: { params: { id: string 
   if (error) throw new Error("Não foi possível consultar empréstimos.");
   const loan = (data as ItemLoan[]).find((item) => item.id === params.id);
   if (!loan) redirect("/loans");
-  return <div className="mx-auto max-w-xl space-y-5"><div><Link href="/loans" className="text-sm text-brand-600">← Empréstimos</Link><h1 className="mt-3 text-2xl font-bold text-slate-900">Registrar devolução</h1></div><ReturnForm loan={loan} /></div>;
+  return <div className="mx-auto max-w-xl space-y-5"><div><Link href="/loans" className="text-sm text-brand-600">← Claviculário</Link><h1 className="mt-3 text-2xl font-bold text-slate-900">Registrar devolução</h1></div><ReturnForm loan={loan} /></div>;
 }

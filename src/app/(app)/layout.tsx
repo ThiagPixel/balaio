@@ -80,7 +80,7 @@ export default async function AppLayout({
   }
 
   if (can(access, PERMISSIONS.LOANS_VIEW)) {
-    navigation.push({ name: "Empréstimos", href: "/loans", icon: "🔑" });
+    navigation.push({ name: "Claviculário", href: "/loans", icon: "🔑" });
   }
 
   if (can(access, PERMISSIONS.OS_VIEW)) {

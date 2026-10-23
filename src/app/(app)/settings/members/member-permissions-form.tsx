@@ -35,7 +35,7 @@ const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   products: "Produtos",
   stock: "Estoque",
-  loans: "Empréstimos",
+  loans: "Claviculário",
   finance: "Financeiro",
   settings: "Configurações",
   members: "Usuários",

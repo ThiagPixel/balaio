@@ -8,6 +8,7 @@ export type ServiceOrderSummary = {
 export type ServiceOrderStep = {
   id: string; position: number; title: string; assignee_id: string;
   assignee_name: string; completed_at: string | null; completion_note: string | null;
+  started_at: string | null;
   depends_on_title: string | null;
   depends_on_completed: boolean | null;
 };
@@ -17,6 +18,7 @@ export type ServiceOrderBlocker = {
 };
 export type ServiceOrder = ServiceOrderSummary & {
   principal_id: string; description: string | null; started_at: string | null;
+  tenant_id: string; archived_at: string | null; archived_by: string | null;
   completed_at: string | null; steps: ServiceOrderStep[];
   blockers: ServiceOrderBlocker[];
   events: { id: number; event_type: string; detail: Record<string, unknown>; created_at: string }[];
